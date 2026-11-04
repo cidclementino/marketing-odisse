@@ -108,8 +108,8 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         const txt = [g.projeto, cont].filter(Boolean).join(' — ');
         dir = editavel ? `<span data-global="projeto" title="Informação padrão — edite no painel à esquerda">${esc(txt)}</span>` : esc(txt);
       }
-      return `<div class="cab" style="left:${M}px;color:${corEsq}">${esc(n.cabecalho)}</div>
-        <div class="cab dir" style="right:${M}px;color:${corDir}">${dir}</div>`;
+      return `<div class="cab t-rotulo" style="left:${M}px;color:${corEsq}">${esc(n.cabecalho)}</div>
+        <div class="cab t-rotulo dir" style="right:${M}px;color:${corDir}">${dir}</div>`;
     },
 
     /** Selo centrado no rodapé, com o centro a E.selo da base. Post único: mão. */
@@ -182,7 +182,7 @@ const processo = (exemplo) => ({
       return `${t.img(s, 0, y, C6 - h2, 362, { fundo: COR.nevoa })}
         ${t.fluxo(X(8), y, W(8, 12), 362, A, `
           <div style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}">
-            <div class="t-numero">0${i + 1}</div>
+            <div class="t-chamada">0${i + 1}</div>
             ${t.campo(`p${i + 1}r`, 't-rotulo', `margin:${px('proximo')} 0 ${px('proximo')}`)}
             ${t.campo(`p${i + 1}t`, 't-texto')}
           </div>`)}`;

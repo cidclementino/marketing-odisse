@@ -14,11 +14,9 @@ const AMOSTRA = {
   titulo: 'Três ambientes, um ponto de fuga.',
   chamada: 'Vamos conversar.',
   citacao: 'O horror está em nunca saber o que esperar.',
-  numero: '01 02 03',
   texto: 'Sem anteparos entre sala, jantar e cozinha, os três ambientes se voltam para o mesmo horizonte.',
   legenda: 'A figura sob a cobertura metálica.',
   rotulo: 'A tese',
-  cabecalho: 'Odisse — Arquitetos',
 };
 
 /** Renderiza todos os modelos de todos os núcleos e mede o que está em uso. */

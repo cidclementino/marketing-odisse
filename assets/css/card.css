@@ -52,8 +52,8 @@
 }
 .card .slot.contain img { object-fit: contain; }
 
-/* Cabeçalho — tipografia em padroes.js (estilo "Cabeçalho"); posição: --e-cabecalho do topo */
-.card .cab {
+/* Cabeçalho — estilo Rótulo (padroes.js); posição: --e-cabecalho do topo */
+.card .cab.t-rotulo {
   top: var(--e-cabecalho);
   white-space: nowrap;
   z-index: 3;
