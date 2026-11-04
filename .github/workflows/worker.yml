@@ -1,0 +1,32 @@
+name: Publicar API (Cloudflare Worker)
+
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**', '.github/workflows/worker.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar configuração
+        run: |
+          if grep -q "COLE_AQUI_O_ID_DO_NAMESPACE" worker/wrangler.toml; then
+            echo "::warning::Falta o id do namespace KV em worker/wrangler.toml — deploy ignorado."
+            echo "pular=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publicar Worker
+        if: env.pular != '1'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          secrets: |
+            UNIVERSO_SENHA
+        env:
+          UNIVERSO_SENHA: ${{ secrets.UNIVERSO_SENHA }}

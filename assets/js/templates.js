@@ -47,7 +47,13 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       const ph = esc(String(opc.ph ?? modelo.exemplo?.[chave] ?? '').replace(/<[^>]+>/g, ''));
       if (!editavel && !valor) return '';
       const attrs = editavel ? ` contenteditable="true" spellcheck="true" data-campo="${chave}" data-ph="${ph}"` : '';
-      return `<div class="${classe}" style="${estilo}"${fit}${attrs}>${valor}</div>`;
+      return `<div class="${classe}" style="${estilo}"${fit}${opc.attrs || ''}${attrs}>${valor}</div>`;
+    },
+
+    /** Texto de apoio: até 5 linhas; se passar, alarga a caixa (meia tela → 3/4 → tela inteira). */
+    apoio(chave, col, estilo = '') {
+      const estagios = [7, 5, 1].filter((c) => c <= col);
+      return t.campo(chave, 't-texto', `margin-left:${X(col) - M}px;${estilo}`, { attrs: ` data-cresce="${estagios.join(',')}"` });
     },
 
     global(chave, classe, estilo = '') {
@@ -59,9 +65,10 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
 
     img(slot, x, y, w, h, opc = {}) {
       const im = card.imgs?.[slot];
-      const base = `class="slot${opc.contain ? ' contain' : ''}" style="${pos(x, y, w, h)}${opc.fundo ? `background:${opc.fundo};` : ''}" data-slot="${slot}"`;
-      if (im?.src) {
-        const src = fonteImagem(card, slot);
+      const segue = opc.segue ? ` data-segue="${opc.segue}" data-gap="${opc.gap ?? 96}" data-fim="${y + h}"` : '';
+      const base = `class="slot${opc.contain ? ' contain' : ''}" style="${pos(x, y, w, h)}${opc.fundo ? `background:${opc.fundo};` : ''}" data-slot="${slot}"${segue}`;
+      const src = im && (im.ref || im.src) ? fonteImagem(card, slot) : null;
+      if (src) {
         const ox = im.x ?? 50, oy = im.y ?? 50, z = im.z ?? 1;
         return `<div ${base}><img src="${src}" alt="" draggable="false" style="object-position:${ox}% ${oy}%;transform-origin:${ox}% ${oy}%;transform:scale(${z})"></div>`;
       }
@@ -71,7 +78,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     },
 
     fundo(cor) { return `<div class="bloco" style="${pos(0, 0, LARG, ALT)}background:${cor}"></div>`; },
-    painel(x, y, w, h, cor) { return `<div class="bloco" style="${pos(x, y, w, h)}background:${cor}"></div>`; },
+    painel(x, y, w, h, cor, extra = '') { return `<div class="bloco" style="${pos(x, y, w, h)}background:${cor}"${extra}></div>`; },
     regra(x, y, w, cor) { return `<div class="bloco" style="${pos(x, y, w, 1.5)}background:${cor}"></div>`; },
 
     veuTopo(h = 200, a = 0.6, x = 0, w = LARG) {
@@ -128,8 +135,8 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       return `<div class="legenda" style="color:${cor};width:${largura}px">${r}${l}</div>`;
     },
 
-    fluxo(x, y, w, h, cor, miolo, classe = '') {
-      return `<div class="fluxo ${classe}" style="${pos(x, y, w, h)}color:${cor}">${miolo}</div>`;
+    fluxo(x, y, w, h, cor, miolo, classe = '', bloco = '') {
+      return `<div class="fluxo ${classe}" style="${pos(x, y, w, h)}color:${cor}"${bloco ? ` data-bloco="${bloco}"` : ''}>${miolo}</div>`;
     },
 
     /** Fechamento comum aos núcleos: imagem estreita à esquerda, conteúdo a partir da coluna 4. */
@@ -205,7 +212,7 @@ const unicoTexto = ({ exemplo, fundo }) => ({
       ${t.fluxo(M, 236, W12, 1004, cor, `
         ${t.campo('rotulo', 't-rotulo', 'margin-bottom:18px')}
         ${t.campo('titulo', 't-titulo', '', { fit: [96, 124, 460] })}
-        ${t.campo('texto', 't-texto', `margin:40px 0 0 ${X(5) - M}px`)}
+        ${t.apoio('texto', 5, 'margin-top:40px')}
         ${t.ficha('f', 3, cor, regraSobre(f), { estilo: 'margin-top:auto' })}`)}
       ${t.selo(cor)}`;
   },
@@ -400,7 +407,7 @@ const ESTUDIO = [
         ${t.fluxo(M, 236, W12, 980, B, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:16px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [64, 84, 300] })}
-          ${t.campo('texto', 't-texto', `margin:44px 0 0 ${X(5) - M}px`)}
+          ${t.apoio('texto', 5, 'margin-top:44px')}
           ${t.ficha('f', 5, B, regraSobre(A), { estilo: 'margin-top:auto', linha: 'padding:26px 0 24px' })}`)}
         ${t.selo(B)}`;
     },
@@ -497,12 +504,12 @@ const ARQUITETOS = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 640, LARG, 800)}
+        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt', gap: 96 })}
         ${t.cab(A)}
-        ${t.fluxo(M, 128, W12, 500, A, `
+        ${t.fluxo(M, 128, W12, 700, A, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:14px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.campo('texto', 't-texto', `margin:26px 0 0 ${X(7) - M}px`)}`)}
+          ${t.apoio('texto', 7, 'margin-top:26px')}`, '', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -523,7 +530,7 @@ const ARQUITETOS = [
         ${t.fluxo(M, 872, W12, 420, A, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:14px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.campo('texto', 't-texto', `margin:28px 0 0 ${X(7) - M}px`)}`)}
+          ${t.apoio('texto', 7, 'margin-top:28px')}`)}
         ${t.selo(A)}`;
     },
   },
@@ -550,7 +557,7 @@ const ARQUITETOS = [
         ${t.campo('l1', 't-rotulo', `position:absolute;${pos(M, y + hh + 24)}color:${A}`)}
         ${t.campo('l2', 't-rotulo', `position:absolute;${pos(X(5), y + hh + 24)}color:${A}`)}
         ${t.campo('l3', 't-rotulo', `position:absolute;${pos(X(9), y + hh + 24)}color:${A}`)}
-        ${t.fluxo(X(7), 1094, W(7, 12), 220, A, t.campo('texto', 't-texto'))}
+        ${t.fluxo(M, 1094, W12, 220, A, t.apoio('texto', 7))}
         ${t.selo(A)}`;
     },
   },
@@ -697,13 +704,14 @@ const OBJETOS = [
       texto: 'Corpo único que se torce em torno do próprio eixo, em sulcos helicoidais contínuos.',
     },
     render(t) {
-      return `${t.fundo(COR.grafite)}
-        ${t.img('a', 0, 586, LARG, 854, { fundo: '#EDEDEB' })}${t.veuBase()}
+      return `${t.fundo(COR.papel)}
+        ${t.painel(0, 0, LARG, 578, COR.grafite, ' data-segue="txt" data-gap="64" data-modo="altura"')}
+        ${t.img('a', 0, 586, LARG, 854, { fundo: '#EDEDEB', segue: 'txt', gap: 72 })}${t.veuBase()}
         ${t.cab(B)}
-        ${t.fluxo(M, 128, W12, 440, B, `
+        ${t.fluxo(M, 128, W12, 700, B, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.campo('texto', 't-texto', `margin:22px 0 0 ${X(7) - M}px`)}`)}
+          ${t.apoio('texto', 7, 'margin-top:22px')}`, '', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -724,7 +732,7 @@ const OBJETOS = [
         ${t.fluxo(M, 816, W12, 470, B, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.campo('texto', 't-texto', `margin:28px 0 0 ${X(5) - M}px`)}`)}
+          ${t.apoio('texto', 5, 'margin-top:28px')}`)}
         ${t.selo(B)}`;
     },
   },
@@ -764,7 +772,7 @@ const OBJETOS = [
         ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 128)}color:${B}`)}
         ${t.fluxo(M, 400, W12, 700, B, `
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 430] })}
-          ${t.campo('texto', 't-texto', `margin:50px 0 0 ${X(7) - M}px`)}`)}
+          ${t.apoio('texto', 7, 'margin-top:50px')}`)}
         ${t.selo(B)}`;
     },
   },
@@ -850,7 +858,7 @@ const OBJETOS = [
         ${t.fluxo(M, 816, W12, 470, B, `
           ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
           ${t.campo('titulo', 't-titulo', '', { fit: [96, 124, 140] })}
-          ${t.campo('texto', 't-texto', `margin:34px 0 0 ${X(5) - M}px`)}
+          ${t.apoio('texto', 5, 'margin-top:34px')}
           ${t.campo('link', 't-rotulo', `margin:auto 0 70px ${X(5) - M}px`)}`)}
         ${t.selo(B)}`;
     },
@@ -899,11 +907,11 @@ const ELAIA = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 762, LARG, 678)}${t.veuBase()}
+        ${t.img('a', 0, 762, LARG, 678, { segue: 'txt', gap: 96 })}${t.veuBase()}
         ${t.cab(A)}
-        ${t.fluxo(M, 128, W12, 620, A, `
+        ${t.fluxo(M, 128, W12, 800, A, `
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.campo('texto', 't-texto', `margin:26px 0 0 ${X(5) - M}px`)}`)}
+          ${t.apoio('texto', 5, 'margin-top:26px')}`, '', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -959,7 +967,7 @@ const ELAIA = [
         ${t.cab(B)}
         ${t.fluxo(M, 140, W12, 700, B, `
           ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.campo('texto', 't-texto', `margin:30px 0 0 ${X(7) - M}px`)}`)}
+          ${t.apoio('texto', 7, 'margin-top:30px')}`)}
         ${t.selo(B)}`;
     },
   },
@@ -1099,9 +1107,73 @@ export function exemploDe(nucleoId, modeloId) {
   return { ...(modeloDe(nucleoId, modeloId)?.exemplo || {}) };
 }
 
+/** Grupo do modelo no painel direito. */
+const CAPAS = new Set(['capa', 'capa-painel', 'capa-papel', 'capa-tres']);
+const FECHAMENTOS = new Set(['fechamento', 'tipografico-ficha']);
+export const GRUPOS = [
+  ['capa', 'Capas'],
+  ['corpo', 'Corpo'],
+  ['fechamento', 'Fechamento'],
+  ['unico', 'Posts únicos'],
+];
+export function grupoDe(m) {
+  if (m.unico) return 'unico';
+  if (CAPAS.has(m.id)) return 'capa';
+  if (FECHAMENTOS.has(m.id)) return 'fechamento';
+  return 'corpo';
+}
+
+const LINHAS_MAX = 5;
+const IMG_MIN = 220;
+
+/**
+ * Passe de layout depois de renderizar um card:
+ * 1. títulos ajustam o corpo (data-fit);
+ * 2. textos de apoio com mais de 5 linhas alargam a caixa: meia tela → 3/4 → tela inteira (data-cresce);
+ * 3. imagens e painéis abaixo do texto mantêm distância fixa do fim do texto (data-segue).
+ */
+export function ajustarLayout(raiz) {
+  raiz.querySelectorAll('[data-fit]').forEach(ajustar);
+  raiz.querySelectorAll('[data-cresce]').forEach(crescer);
+  raiz.querySelectorAll('[data-segue]').forEach((el) => seguir(el, raiz));
+}
+
+export function crescer(el) {
+  const estagios = el.dataset.cresce.split(',').map(Number);
+  const lh = parseFloat(getComputedStyle(el).lineHeight) || 39;
+  for (const col of estagios) {
+    el.style.marginLeft = X(col) - M + 'px';
+    if (Math.round(el.scrollHeight / lh) <= LINHAS_MAX) break;
+  }
+}
+
+function fimDoBloco(bloco) {
+  let b = 0;
+  for (const c of bloco.children) {
+    if (!c.offsetHeight) continue;
+    b = Math.max(b, c.offsetTop + c.offsetHeight);
+  }
+  return bloco.offsetTop + b;
+}
+
+export function seguir(el, raiz) {
+  const card = raiz.classList?.contains('card') ? raiz : el.closest('.card') || raiz;
+  const bloco = card.querySelector(`[data-bloco="${el.dataset.segue}"]`);
+  if (!bloco) return;
+  const y = Math.round(fimDoBloco(bloco) + Number(el.dataset.gap || 96));
+  if (el.dataset.modo === 'altura') {
+    el.style.height = Math.max(0, y - el.offsetTop) + 'px';
+  } else {
+    const fim = Number(el.dataset.fim || ALT);
+    const topo = Math.min(y, fim - IMG_MIN);
+    el.style.top = topo + 'px';
+    el.style.height = fim - topo + 'px';
+  }
+}
+
 /** Ajusta o corpo dos títulos marcados com data-fit="min,max,alturaMax". */
 export function ajustarTextos(raiz) {
-  raiz.querySelectorAll('[data-fit]').forEach(ajustar);
+  ajustarLayout(raiz);
 }
 export function ajustar(el) {
   const [min, max, alt] = el.dataset.fit.split(',').map(Number);

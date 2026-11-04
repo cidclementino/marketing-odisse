@@ -6,17 +6,25 @@ A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 p
 
 ## Como usar
 
-1. **Núcleo:** escolha na faixa abaixo do menu entre Odisse Estúdio, Arquitetos, Objetos ou Elaia. Cada núcleo tem o próprio carrossel e as próprias informações padrão. Painel, véu, tratamento de imagem e selo mudam sozinhos.
-2. **Informações padrão (à esquerda):** projeto ou série, data de publicação, contador, selo e contatos do fechamento. O aviso do post único (Prêmio, Lançamento…) é escrito direto no cabeçalho do card. Valem para todos os cards. Clicar num desses textos no canvas leva direto ao campo certo.
-3. **Modelos (à direita):** cada núcleo tem o próprio repertório, tirado do `post-3x4-templates`. Clique num modelo para aplicá-lo ao card selecionado. O texto que você já escreveu é mantido quando o campo existe no novo modelo.
+1. **Início:** em *Nova publicação*, escolha o núcleo (Estúdio, Arquitetos, Objetos ou Elaia). O carrossel já começa com a sequência de modelos dele. Abaixo fica o **Arquivo**, com tudo o que foi criado, filtro por núcleo e busca.
+2. **Informações padrão (à esquerda):** projeto ou série, data de publicação, contador, selo e contatos do fechamento. Valem para todos os cards da publicação.
+3. **Modelos (à direita):** cada núcleo tem o próprio repertório (tirado do `post-3x4-templates`), agrupado em *Capas*, *Corpo*, *Fechamento* e *Posts únicos*. Os grupos podem ser recolhidos.
 4. **Canvas:**
-   - **Texto:** clique e escreva. Enter quebra a linha e Ctrl/Cmd + B põe em negrito. O corpo do título se ajusta à faixa do manual (88–132 px).
-   - **Imagem:** clique numa área vazia ou arraste um arquivo sobre ela. Arraste a imagem para reenquadrar. Zoom, posição e "original × tratada" ficam em *Imagens do card*, à direita.
-   - **Novo card:** use o **+** ao lado.
-   - **Visualização:** **3** (o card ativo com os vizinhos) ou **Todos** (em linha, como carrossel).
-5. **Exportar:** gera PNGs em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.png`). Pode ser só o card selecionado ou o carrossel inteiro em `.zip`.
+   - **Texto:** clique e escreva. Enter quebra a linha e Ctrl/Cmd + B põe em negrito. O título ajusta o corpo; o texto de apoio vai até 5 linhas e, passando disso, alarga a caixa (meia tela → 3/4 → tela inteira, sempre dentro das margens). Imagens abaixo do texto mantêm distância fixa do fim dele.
+   - **Imagem:** clique numa área vazia ou arraste um arquivo sobre ela. Arraste a imagem para reenquadrar.
+   - **Cards:** setas, duplicar e excluir ficam sobre o card em destaque; **+** adiciona. Visualização **3** ou **Todos** no canto superior direito.
+5. **Exportar** (canto inferior direito): PNGs em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.png`), um card ou o carrossel em `.zip`.
 
-Tudo fica salvo no navegador (IndexedDB), inclusive as imagens. Nada é enviado para servidor.
+## Armazenamento
+
+Tudo é salvo primeiro no navegador (IndexedDB). Com o **armazenamento na nuvem** conectado, publicações e imagens também vão para um Cloudflare Worker com KV (`worker/`), na mesma conta do Radar, e aparecem em qualquer computador com a senha.
+
+Configuração (uma vez):
+
+1. Cloudflare → *Storage & Databases → KV* → criar o namespace `UNIVERSO` e colar o id em `worker/wrangler.toml`.
+2. GitHub → *Settings → Secrets and variables → Actions* → criar `CLOUDFLARE_API_TOKEN` (modelo "Edit Cloudflare Workers"), `CLOUDFLARE_ACCOUNT_ID` e `UNIVERSO_SENHA`.
+3. O workflow `Publicar API` publica o Worker a cada mudança em `worker/` (ou manualmente na aba Actions).
+4. No Universo: *Conectar armazenamento* → endereço do Worker + senha.
 
 ## Rodar localmente
 
@@ -39,7 +47,10 @@ assets/js/nucleos.js     paleta e registro de cada núcleo
 assets/js/templates.js   os modelos de card de cada núcleo (post-3x4-templates)
 assets/js/marks.js       selos (roda, sol, flor, mão) e logotipos em vetor
 assets/js/imaging.js     leitura de imagem e duotone com grão
-assets/js/app.js         estado, edição, carrossel e exportação
+assets/js/app.js         início, arquivo, edição, carrossel e exportação
+assets/js/store.js       armazenamento local (IndexedDB)
+assets/js/nuvem.js       cliente da API
+worker/                  API Cloudflare Worker + KV
 assets/fonts/            Inter variável (com eixo óptico, para Inter Display)
 vendor/                  html-to-image e JSZip
 ```
