@@ -501,3 +501,23 @@ body.vista-padroes .menu, body.vista-padroes .topo-acoes { display: flex; }
 .fora { margin: 0; padding: 14px 18px 14px 34px; background: var(--papel); border: 1px solid var(--perigo); border-radius: 10px; font-size: 12.5px; line-height: 1.6; }
 .tudo-ok { font-size: 13.5px; background: var(--papel); border: 1px solid var(--linha); border-left: 3px solid #3F8A5E; border-radius: 8px; padding: 12px 16px; margin: 0; color: var(--ardosia) !important; }
 @media (max-width: 1000px) { .esp-sec { grid-template-columns: 1fr; } }
+
+/* ---- Panorama dos modelos ---------------------------------------------- */
+.pano-nucleo { margin-bottom: 40px; }
+.pano-cab { display: flex; align-items: center; gap: 12px; padding: 14px 0 12px; border-bottom: 2px solid var(--ardosia); margin-bottom: 14px; position: sticky; top: -24px; background: var(--fundo); z-index: 2; }
+.pano-selo { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(63,75,87,.12); }
+.pano-cab b { display: block; font-size: 17px; letter-spacing: -.01em; }
+.pano-cab small { font-size: 12.5px; color: var(--ardosia-2); }
+.pano-nucleo h3 { margin: 18px 0 12px; display: flex; align-items: center; gap: 8px; }
+.cont-p { font-size: 10.5px; font-weight: 600; background: var(--nevoa); color: var(--ardosia-2); border-radius: 99px; padding: 1px 7px; letter-spacing: 0; }
+.pano-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px 20px; }
+.pano-item { margin: 0; }
+.pano-mini { width: 100%; aspect-ratio: 3 / 4; position: relative; overflow: hidden; border-radius: 3px; box-shadow: 0 1px 2px rgba(63,75,87,.12), 0 8px 24px rgba(63,75,87,.12); }
+.pano-mini > .card { position: absolute; top: 0; left: 0; transform-origin: 0 0; pointer-events: none; }
+.pano-item figcaption { margin-top: 10px; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; }
+.pano-item .cod { font: 600 11px/1 ui-monospace, Consolas, monospace; background: var(--ardosia); color: var(--papel); border-radius: 4px; padding: 3px 5px; }
+.pano-item b { font-size: 13.5px; }
+.pano-item small { grid-column: 1 / -1; font-size: 12px; color: var(--ardosia-2); margin-top: 4px; line-height: 1.4; }
+.ir-pano { color: inherit; text-decoration: none; }
+.ir-pano:hover b { text-decoration: underline; }
+@media (max-width: 1000px) { .pano-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

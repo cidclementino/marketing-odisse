@@ -4,7 +4,9 @@
 
 import { TEXTO, ESPACO, GRUPOS_ESPACO, FORMATOS, corpoMin, corpoMax } from './padroes.js';
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo } from './nucleos.js';
-import { modelosDo, renderCard, exemploDe, ajustarLayout } from './templates.js';
+import { modelosDo, renderCard, exemploDe, ajustarLayout, GRUPOS, grupoDe, LARG } from './templates.js';
+import { tintaSobre } from './nucleos.js';
+import { mark } from './marks.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',');
@@ -86,6 +88,44 @@ function auditar() {
   return { porEstilo, valores, fora, total };
 }
 
+/** Panorama de todos os modelos: núcleo → grupo → cards, 4 por linha. */
+function panorama() {
+  return ORDEM_NUCLEOS.map((nid) => {
+    const n = NUCLEOS[nid];
+    const globais = padroesDoNucleo(nid);
+    const lista = modelosDo(nid);
+    const grupos = GRUPOS.map(([gid, gnome]) => {
+      const itens = lista.map((m, i) => ({ m, i })).filter(({ m }) => grupoDe(m) === gid);
+      if (!itens.length) return '';
+      return `<h3>${gnome} <span class="cont-p">${itens.length}</span></h3>
+        <div class="pano-grade">${itens.map(({ m, i }) => {
+          const cod = `${n.sigla.toUpperCase()}-${String(i + 1).padStart(2, '0')}`;
+          return `<figure class="pano-item">
+            <div class="pano-mini"><div class="card">${renderCard({
+              card: { id: 'pano', modelo: m.id, campos: exemploDe(nid, m.id), imgs: {} },
+              indice: 1, total: 8, nucleo: n, globais, modo: 'miniatura', fonteImagem: () => null,
+            })}</div></div>
+            <figcaption><span class="cod">${cod}</span><b>${esc(m.nome)}</b><small>${esc(m.desc)}</small></figcaption>
+          </figure>`;
+        }).join('')}</div>`;
+    }).join('');
+    return `<div class="pano-nucleo" id="pano-${nid}">
+      <div class="pano-cab"><span class="pano-selo" style="background:${n.painel};color:${tintaSobre(n.painel)}">${mark(n.selo, 22)}</span>
+        <div><b>Odisse ${n.nome}</b><small>${n.conteudo} · ${lista.length} modelos</small></div></div>
+      ${grupos}
+    </div>`;
+  }).join('');
+}
+
+function escalarPanorama(raiz) {
+  raiz.querySelectorAll('.pano-mini').forEach((mini) => {
+    const c = mini.firstElementChild;
+    if (!c.dataset.ok) { ajustarLayout(c); c.dataset.ok = 1; }
+    c.style.transform = `scale(${mini.clientWidth / LARG})`;
+  });
+}
+
+let observador;
 export function renderPadroes(raiz) {
   const a = auditar();
   const formatos = FORMATOS.map((f) => `<span class="fmt ${f.ativo ? 'ativo' : ''}">${f.nome} <small>${f.larg} × ${f.alt}</small>${f.ativo ? '' : ' <i>em breve</i>'}</span>`).join('');
@@ -151,7 +191,7 @@ export function renderPadroes(raiz) {
         <div class="resumo">
           <span><b>${TEXTO.length}</b> estilos de texto</span>
           <span><b>${ESPACO.length}</b> espaçamentos</span>
-          <span><b>${a.total}</b> modelos conferidos</span>
+          <a href="javascript:void 0" class="ir-pano" data-ir-pano><b>${a.total}</b> modelos conferidos</a>
           <span class="${a.fora.length ? 'alerta' : 'ok'}"><b>${a.fora.length}</b> fora do padrão</span>
         </div>
       </div>
@@ -178,10 +218,20 @@ export function renderPadroes(raiz) {
       </div>
     </section>
 
+    <section class="panorama" id="pano">
+      <h2>Modelos <span class="cont">${a.total}</span> <span class="info" tabindex="0" data-info="Todos os modelos de post, por núcleo e grupo, com o texto de exemplo. Use o código (ex.: OA-05) para pedir ajustes num modelo específico.">i</span></h2>
+      ${panorama()}
+    </section>
+
     <section>
       <h2>Conferência</h2>
       ${a.fora.length
         ? `<ul class="fora">${a.fora.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`
         : '<p class="tudo-ok">Todos os modelos usam apenas os estilos de texto e os espaçamentos acima.</p>'}
     </section>`;
+  escalarPanorama(raiz);
+  raiz.querySelector('[data-ir-pano]').onclick = () => raiz.querySelector('#pano').scrollIntoView({ behavior: 'smooth' });
+  observador?.disconnect();
+  observador = new ResizeObserver(() => escalarPanorama(raiz));
+  observador.observe(raiz);
 }
