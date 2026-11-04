@@ -102,10 +102,10 @@ export function padroesDoNucleo(id) {
     estudio: { projeto: 'Reserva Criativa', assunto: 'Bastidores', site: 'odisse.com.br',
       contatoTitulo: 'Acompanhe o estúdio.', contatoTexto: 'Estúdio de Arquitetura & Design · João Pessoa · atuação em todo o Brasil.' },
     arquitetos: { projeto: 'Apto RP 201', assunto: 'Projeto de interiores' },
-    objetos: { projeto: 'Vórtice I', assunto: 'Recipiente', site: 'odisseobjetos.com',
-      contatoTitulo: 'Disponível na loja.', contatoTexto: 'Peças autorais desenhadas e produzidas pelo Odisse.' },
-    elaia: { projeto: 'Nathalia Linhares', assunto: 'Ensaio', site: 'odisse.substack.com',
-      contatoTitulo: 'Continue a leitura no Elaia.', contatoTexto: 'O ensaio completo está publicado no Substack.' },
+    objetos: { projeto: 'Vórtice I', assunto: 'Recipiente', site: 'odisseobjetos.com', telefone: '',
+      contatoTitulo: 'Vórtice I está disponível na loja.', contatoTexto: 'Peças autorais desenhadas e produzidas pelo Odisse.' },
+    elaia: { projeto: 'Nathalia Linhares', assunto: 'Ensaio', site: 'odisse.substack.com', telefone: '', email: '',
+      contatoTitulo: 'Continue a leitura no Elaia.', contatoTexto: 'Este texto parte do ensaio Backrooms, Labirinto Domesticado: Parte I, de Cid Clementino.' },
   };
   return { ...base, ...por[id] };
 }

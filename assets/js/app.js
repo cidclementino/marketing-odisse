@@ -1,7 +1,7 @@
 // Universo — editor de posts 3:4 do Odisse.
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
-import { MODELOS, MODELO, renderCard, camposIniciais, exemploDe, ajustarTextos, ajustar, LARG, ALT } from './templates.js';
+import { modelosDo, modeloDe, SEQUENCIAS, renderCard, exemploDe, ajustarTextos, ajustar, LARG, ALT } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import { ler, gravar } from './store.js';
@@ -13,22 +13,17 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 // ---------------------------------------------------------------------------
 // Estado
 
-const SEQUENCIA_INICIAL = {
-  estudio: ['capa', 'abertura', 'imagem-coluna', 'pausa', 'fechamento'],
-  arquitetos: ['capa', 'tese', 'titulo-imagem', 'processo', 'ficha', 'fechamento'],
-  objetos: ['capa', 'abertura', 'desenho', 'ficha', 'unico-imagem'],
-  elaia: ['capa', 'tese', 'citacao', 'imagem-coluna', 'fechamento'],
-};
+const VERSAO = 2;
 
 function novoCard(modelo, nucleoId) {
-  return { id: uid(), modelo, campos: camposIniciais(modelo, nucleoId), imgs: {} };
+  return { id: uid(), modelo, campos: exemploDe(nucleoId, modelo), imgs: {} };
 }
 function novoDeck(id) {
-  return { globais: padroesDoNucleo(id), cards: SEQUENCIA_INICIAL[id].map((m) => novoCard(m, id)), ativo: 0 };
+  return { globais: padroesDoNucleo(id), cards: SEQUENCIAS[id].map((m) => novoCard(m, id)), ativo: 0 };
 }
 
 let estado = {
-  versao: 1,
+  versao: VERSAO,
   nucleo: 'estudio',
   modo: '3',
   decks: Object.fromEntries(ORDEM_NUCLEOS.map((id) => [id, novoDeck(id)])),
@@ -144,15 +139,12 @@ function renderNucleos() {
 
 const CAMPOS_GLOBAIS = [
   { grupo: 'Publicação', campos: [
-    { k: 'tipo', tipo: 'seg', rot: 'Formato', opcoes: [['carrossel', 'Carrossel'], ['unico', 'Post único']] },
-    { k: 'projeto', rot: 'Projeto, série ou autoria', dica: 'Cabeçalho à direita, antes do contador.' },
-    { k: 'assunto', rot: 'Assunto', dica: 'Entra na assinatura da capa: "Núcleo · assunto".' },
-    { k: 'aviso', rot: 'Aviso do post único', dica: 'Substitui o contador: Prêmio, Novo episódio, Lançamento…' },
+    { k: 'projeto', rot: 'Projeto, série ou autoria', dica: 'Cabeçalho à direita, antes do contador. Também nomeia os arquivos.' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
     { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)' },
     { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
   ] },
-  { grupo: 'Fechamento e contatos', campos: [
+  { grupo: 'Fechamento e contatos', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
     { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
     { k: 'site', rot: 'Site' },
@@ -166,7 +158,7 @@ function renderGlobais() {
   const g = deck().globais;
   const cor = tintaSobre(n.painel);
   const amostra = (c) => `<span class="amostra" style="background:${c}"></span>`;
-  let h = `<div class="registro">
+  const registro = `<div class="registro">
     <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
     <dl>
       <dt>Painel</dt><dd>${amostra(n.painel)}${nomeCor(n.painel)}</dd>
@@ -175,7 +167,10 @@ function renderGlobais() {
       <dt>Selo</dt><dd>${{ roda: 'Roda', sol: 'Sol', flor: 'Flor', mao: 'Mão' }[n.selo]}</dd>
     </dl>
   </div>`;
+  let h = '';
+  const temFechamento = modelosDo(n.id).some((m) => m.id === 'fechamento');
   for (const grp of CAMPOS_GLOBAIS) {
+    if (grp.fechamento && !temFechamento) continue;
     h += `<div class="grupo"><h3>${grp.grupo}</h3>`;
     for (const c of grp.campos) {
       if (c.tipo === 'seg') {
@@ -194,6 +189,7 @@ function renderGlobais() {
     }
     h += `</div>`;
   }
+  h += `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3>${registro}</div>`;
   $('#globais').innerHTML = h;
 }
 function nomeCor(hex) {
@@ -216,10 +212,10 @@ function renderModelos() {
   const g = deck().globais;
   const atual = cardAtivo()?.modelo;
   const el = $('#modelos');
-  el.innerHTML = MODELOS.map((m) => `
+  el.innerHTML = modelosDo(n.id).map((m) => `
     <button class="modelo ${m.id === atual ? 'ativo' : ''}" data-modelo="${m.id}" title="${m.desc}">
       <div class="mini"><div class="card">${renderCard({
-        card: { id: 'm-' + m.id, modelo: m.id, campos: exemploDe(m.id, n.id), imgs: {} },
+        card: { id: 'm-' + m.id, modelo: m.id, campos: exemploDe(n.id, m.id), imgs: {} },
         indice: 0, total: 8, nucleo: n, globais: g, modo: 'miniatura', fonteImagem,
       })}</div></div>
       ${m.unico ? '<span class="tag">Post único</span>' : ''}
@@ -239,8 +235,8 @@ function renderModelos() {
 function aplicarModelo(id) {
   const c = cardAtivo();
   if (!c || c.modelo === id) return;
-  const ex = exemploDe(id, estado.nucleo);
-  const exAntigo = exemploDe(c.modelo, estado.nucleo);
+  const ex = exemploDe(estado.nucleo, id);
+  const exAntigo = exemploDe(estado.nucleo, c.modelo);
   const campos = {};
   // mantém o que já foi escrito (diferente do exemplo) quando o campo existe no novo modelo
   for (const k of Object.keys(ex)) {
@@ -260,7 +256,7 @@ function renderImagens() {
   const c = cardAtivo();
   const el = $('#imagens');
   if (!c) { el.innerHTML = ''; return; }
-  const m = MODELO[c.modelo];
+  const m = modeloDe(estado.nucleo, c.modelo);
   const slots = Object.entries(m.slots || {});
   const n = nucleo();
   let h = `<h3>Imagens do card</h3>`;
@@ -311,7 +307,6 @@ function atualizarImgNoCard(cardId, slot) {
 function indicesVisiveis() {
   const d = deck();
   const n = d.cards.length;
-  if (estado.modo === '1') return [d.ativo];
   if (estado.modo === '3') return [d.ativo - 1, d.ativo, d.ativo + 1].map((i) => (i >= 0 && i < n ? i : null));
   return d.cards.map((_, i) => i);
 }
@@ -347,7 +342,7 @@ function renderTrilho() {
     const lateral = estado.modo === '3' && i !== d.ativo;
     const kk = lateral ? k * LATERAL : k;
     h += `<div class="peca ${i === d.ativo ? 'ativa' : ''} ${lateral ? 'lateral' : ''}" data-id="${c.id}" data-i="${i}">
-      <span class="num">${String(i + 1).padStart(2, '0')} · ${MODELO[c.modelo]?.nome || ''}</span>
+      <span class="num">${String(i + 1).padStart(2, '0')} · ${modeloDe(estado.nucleo, c.modelo)?.nome || ''}</span>
       <div class="moldura" style="--k:${kk}"><div class="card editar">${renderCard({
         card: c, indice: i, total: d.cards.length, nucleo: n, globais: d.globais, modo: 'editar', fonteImagem,
       })}</div></div>
@@ -370,7 +365,7 @@ function renderBarra() {
   const d = deck();
   const c = cardAtivo();
   $('#posicao').textContent = d.cards.length ? `Card ${d.ativo + 1} de ${d.cards.length}` : 'Nenhum card';
-  $('#modeloAtual').textContent = c ? `· ${MODELO[c.modelo].nome}` : '';
+  $('#modeloAtual').textContent = c ? `· ${modeloDe(estado.nucleo, c.modelo).nome}` : '';
   $('#btMoverEsq').disabled = d.ativo <= 0;
   $('#btMoverDir').disabled = d.ativo >= d.cards.length - 1;
   $('#btExcluir').disabled = d.cards.length <= 1;
@@ -402,9 +397,10 @@ function irPara(i) {
 
 function adicionarCard() {
   const d = deck();
-  const ultimo = cardAtivo()?.modelo;
-  // sugere um corte diferente do anterior (manual: nunca duas composições seguidas)
-  const sugestao = ultimo === 'pausa' ? 'titulo-imagem' : ultimo === 'titulo-imagem' ? 'tese' : 'pausa';
+  // sugere o modelo seguinte do repertório (manual: nunca duas composições iguais seguidas)
+  const lista = modelosDo(estado.nucleo).filter((m) => !m.unico && m.id !== 'capa');
+  const i = lista.findIndex((m) => m.id === cardAtivo()?.modelo);
+  const sugestao = lista[(i + 1) % lista.length].id;
   const c = novoCard(sugestao, estado.nucleo);
   const pos = estado.modo === 'todos' ? d.cards.length : d.ativo + 1;
   d.cards.splice(pos, 0, c);
@@ -446,7 +442,7 @@ function dataArquivo() {
 }
 function nomeArquivo(i) {
   const g = deck().globais;
-  return `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${slug(g.projeto || g.assunto) || 'post'}.png`;
+  return `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${slug(g.projeto) || 'post'}.png`;
 }
 
 async function gerarPng(i) {
@@ -497,7 +493,7 @@ async function exportarTudo() {
   const blob = await zip.generateAsync({ type: 'blob' });
   const g = d.globais;
   const u = URL.createObjectURL(blob);
-  baixar(u, `${dataArquivo()}-${nucleo().sigla}-${slug(g.projeto || g.assunto) || 'carrossel'}.zip`);
+  baixar(u, `${dataArquivo()}-${nucleo().sigla}-${slug(g.projeto) || 'carrossel'}.zip`);
   setTimeout(() => URL.revokeObjectURL(u), 4000);
   aviso('Carrossel exportado (.zip).');
 }
@@ -747,13 +743,21 @@ function erroExport(err) {
 async function iniciar() {
   $('#marcaSelo').innerHTML = mark('mao', 24);
   const salvo = await ler('estado');
-  if (salvo?.versao === 1) {
+  if (salvo?.versao === VERSAO) {
     estado = salvo;
     for (const id of ORDEM_NUCLEOS) {
       estado.decks[id] ||= novoDeck(id);
       estado.decks[id].globais = { ...padroesDoNucleo(id), ...estado.decks[id].globais };
     }
+  } else if (salvo?.versao === 1) {
+    // v1 tinha modelos genéricos: mantém as informações padrão e recomeça os carrosséis
+    for (const id of ORDEM_NUCLEOS) {
+      const g = salvo.decks?.[id]?.globais;
+      if (g) estado.decks[id].globais = { ...padroesDoNucleo(id), ...g };
+    }
+    estado.nucleo = salvo.nucleo || estado.nucleo;
   }
+  if (!['3', 'todos'].includes(estado.modo)) estado.modo = '3';
   await document.fonts.load('700 112px Inter').catch(() => {});
   await document.fonts.ready;
   renderGlobais();

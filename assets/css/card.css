@@ -81,12 +81,12 @@
 .card .t-titulo {
   font-size: 112px; font-weight: 700; line-height: .96; letter-spacing: -.035em;
 }
-.card .t-titulo-m { font-size: 76px; line-height: .98; }
+.card .t-titulo-m { font-size: 80px; line-height: .98; }
 .card .t-numero {
   font-size: 72px; font-weight: 700; line-height: 1; letter-spacing: -.03em;
 }
 .card .t-citacao {
-  font-size: 60px; font-weight: 400; line-height: 1.12; letter-spacing: -.02em;
+  font-size: 70px; font-weight: 480; line-height: 1.1; letter-spacing: -.025em;
 }
 .card .t-citacao b, .card .t-texto b, .card .t-legenda b { font-weight: 700; }
 .card .t-texto {
@@ -102,6 +102,11 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
+
+.card .cab .cab-txt { display: inline; }
+.card .ficha-linha.empilhada { grid-template-columns: 1fr; gap: 8px; padding: 16px 0 22px; }
+.card .ficha.distribuir .ficha-linha { padding: 24px 0 46px; }
+.card .ficha-r { padding-right: 20px; }
 
 /* Assinatura de capa */
 .card .assinatura {
