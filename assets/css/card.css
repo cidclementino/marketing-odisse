@@ -52,14 +52,9 @@
 }
 .card .slot.contain img { object-fit: contain; }
 
-/* Cabeçalho — y 40, 19 px SemiBold, caixa alta, +7% */
+/* Cabeçalho — tipografia em padroes.js (estilo "Cabeçalho"); posição: --e-cabecalho do topo */
 .card .cab {
-  top: 40px;
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: .07em;
-  text-transform: uppercase;
+  top: var(--e-cabecalho);
   white-space: nowrap;
   z-index: 3;
 }
@@ -74,43 +69,22 @@
 .card .fluxo.fim { justify-content: flex-end; }
 .card .fluxo.meio { justify-content: center; }
 
-/* Tipografia — uma família, contraste extremo */
-.card .t-capa {
-  font-size: 150px; font-weight: 700; line-height: .94; letter-spacing: -.04em;
-}
-.card .t-titulo {
-  font-size: 112px; font-weight: 700; line-height: .96; letter-spacing: -.035em;
-}
-.card .t-titulo-m { font-size: 80px; line-height: .98; }
-.card .t-numero {
-  font-size: 72px; font-weight: 700; line-height: 1; letter-spacing: -.03em;
-}
-.card .t-citacao {
-  font-size: 70px; font-weight: 480; line-height: 1.1; letter-spacing: -.025em;
-}
+/* Tipografia — uma família, contraste extremo. Corpo, peso, entrelinha e tracking
+   vêm de padroes.js (TEXTO), gerados em <style id="padroes-css">. */
 .card .t-citacao b, .card .t-texto b, .card .t-legenda b { font-weight: 700; }
-.card .t-texto {
-  font-size: 29px; font-weight: 400; line-height: 1.34; letter-spacing: -.01em;
-}
-.card .t-legenda {
-  font-size: 24px; font-weight: 400; line-height: 1.3;
-}
-.card .t-rotulo {
-  font-size: 20px; font-weight: 600; line-height: 1.2; letter-spacing: .08em; text-transform: uppercase;
-}
-.card .t-capa, .card .t-titulo, .card .t-texto, .card .t-legenda, .card .t-citacao, .card .t-rotulo {
+.card .t-capa, .card .t-titulo, .card .t-chamada, .card .t-texto, .card .t-legenda, .card .t-citacao, .card .t-rotulo {
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 
 .card .cab .cab-txt { display: inline; }
-.card .ficha-linha.empilhada { grid-template-columns: 1fr; gap: 8px; padding: 16px 0 22px; }
-.card .ficha.distribuir .ficha-linha { padding: 24px 0 46px; }
+.card .ficha-linha.empilhada { grid-template-columns: 1fr; gap: var(--e-justo); }
+.card .ficha.distribuir .ficha-linha { padding: var(--e-filete) 0 var(--e-bloco); }
 .card .ficha-r { padding-right: 20px; }
 
 /* Assinatura de capa */
 .card .assinatura {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 30px;
+  display: flex; align-items: center; gap: var(--e-proximo);
 }
 
 /* Ficha — rótulo na coluna 1, valor na coluna 5 */
@@ -119,19 +93,18 @@
   display: grid;
   grid-template-columns: 330.67px 1fr;
   align-items: baseline;
-  padding: 18px 0 16px;
+  padding: var(--e-filete) 0;
   border-bottom: 1.5px solid;
 }
-.card .ficha-v { font-size: 27px; }
 
 /* Legenda de imagem — pé, à esquerda */
 .card .legenda {
-  left: 52px; bottom: 34px; width: 380px; z-index: 3;
-  display: flex; flex-direction: column; gap: 6px;
+  left: var(--e-margem); bottom: 34px; width: 380px; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--e-justo);
 }
 
-.card .contatos { display: flex; flex-direction: column; gap: 4px; }
-.card .lockup { display: flex; align-items: center; gap: 22px; }
+.card .contatos { display: flex; flex-direction: column; }
+.card .lockup { display: flex; align-items: center; gap: var(--e-proximo); }
 
 /* ---- Somente no editor ------------------------------------------------ */
 .card.editar [contenteditable] { outline: none; cursor: text; border-radius: 2px; }

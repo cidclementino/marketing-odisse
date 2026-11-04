@@ -9,12 +9,16 @@ import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import * as local from './store.js';
 import * as nuvem from './nuvem.js';
+import { instalarPadroes } from './padroes.js';
+import { renderPadroes } from './pagina-padroes.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = (p = '') => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const VERSAO = 3;
+/** Ícone (i): o texto de ajuda aparece ao pousar o mouse. */
+const info = (txt) => (txt ? ` <span class="info" tabindex="0" data-info="${esc(txt)}">i</span>` : '');
 
 // ---------------------------------------------------------------------------
 // Preferências de interface (por navegador)
@@ -359,13 +363,13 @@ function renderEditor() {
 // ---- Informações padrão ---------------------------------------------------
 
 const CAMPOS_GLOBAIS = [
-  { grupo: 'Publicação', campos: [
+  { grupo: 'Publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
     { k: 'projeto', rot: 'Projeto, série ou autoria', dica: 'Cabeçalho à direita, antes do contador. Também nomeia os arquivos.' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
     { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)' },
     { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
   ] },
-  { grupo: 'Fechamento e contatos', fechamento: true, campos: [
+  { grupo: 'Fechamento e contatos', dica: 'Aparecem no card de fechamento. Valem para toda a publicação.', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
     { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
     { k: 'site', rot: 'Site' },
@@ -381,23 +385,24 @@ function renderGlobais() {
   const nomeCor = (hex) => ({ [COR.ardosia]: 'Ardósia', [COR.areia]: 'Areia', [COR.grafite]: 'Grafite', [COR.pessego]: 'Pêssego', [COR.terra]: 'Terra', [COR.papel]: 'Papel' }[hex] || hex);
   const amostra = (c) => `<span class="amostra" style="background:${c}"></span>`;
   const temFechamento = modelosDo(n.id).some((m) => m.id === 'fechamento');
-  let h = '';
-  for (const grp of CAMPOS_GLOBAIS) {
-    if (grp.fechamento && !temFechamento) continue;
-    h += `<div class="grupo"><h3>${grp.grupo}</h3>`;
+  const grupo = (grp) => {
+    let h = `<div class="grupo"><h3>${grp.grupo}${info(grp.dica)}</h3>`;
     for (const c of grp.campos) {
       if (c.tipo === 'check') {
-        h += `<label class="check"><input type="checkbox" data-k="${c.k}" ${g[c.k] ? 'checked' : ''}> ${c.rot}</label>`;
+        h += `<label class="check"><input type="checkbox" data-k="${c.k}" ${g[c.k] ? 'checked' : ''}> ${c.rot}${info(c.dica)}</label>`;
       } else {
         const input = c.area
           ? `<textarea data-k="${c.k}" rows="2">${esc(g[c.k])}</textarea>`
           : `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(g[c.k])}">`;
-        h += `<label class="campo" data-campo-global="${c.k}"><span>${c.rot}</span>${input}${c.dica ? `<small>${c.dica}</small>` : ''}</label>`;
+        h += `<label class="campo" data-campo-global="${c.k}"><span>${c.rot}${info(c.dica)}</span>${input}</label>`;
       }
     }
-    h += `</div>`;
-  }
-  h += `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
+    return h + `</div>`;
+  };
+  const [pubGrp, fechGrp] = CAMPOS_GLOBAIS;
+  $('#globaisPub').innerHTML = grupo(pubGrp);
+  $('#globaisFech').innerHTML = temFechamento ? grupo(fechGrp) : '';
+  $('#registro').innerHTML = `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
     <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
     <dl>
       <dt>Painel</dt><dd>${amostra(n.painel)}${nomeCor(n.painel)}</dd>
@@ -406,7 +411,6 @@ function renderGlobais() {
       <dt>Selo</dt><dd>${{ roda: 'Roda', sol: 'Sol', flor: 'Flor', mao: 'Mão' }[n.selo]}</dd>
     </dl>
   </div></div>`;
-  $('#globais').innerHTML = h;
 }
 
 let timerGlobais;
@@ -435,13 +439,12 @@ function renderModelos() {
     return `<details class="grupo-modelos" data-grupo="${gid}" ${fechados.includes(gid) ? '' : 'open'}>
       <summary><span>${gnome}</span><small>${itens.length}</small></summary>
       <div class="modelos">${itens.map((m) => `
-        <button class="modelo ${m.id === atual ? 'ativo' : ''}" data-modelo="${m.id}" title="${esc(m.desc)}">
+        <button class="modelo ${m.id === atual ? 'ativo' : ''}" data-modelo="${m.id}">
           <div class="mini"><div class="card">${renderCard({
             card: { id: 'm-' + m.id, modelo: m.id, campos: exemploDe(n.id, m.id), imgs: {} },
             indice: 0, total: 8, nucleo: n, globais: g, modo: 'miniatura', fonteImagem,
           })}</div></div>
-          <b>${m.nome}</b>
-          <small>${m.desc}</small>
+          <b>${m.nome}${info(m.desc)}</b>
         </button>`).join('')}</div>
     </details>`;
   }).join('');
@@ -486,8 +489,11 @@ function renderImagens() {
   const m = modeloDe(pub.nucleo, c.modelo);
   const slots = Object.entries(m.slots || {});
   const n = nucleo();
-  let h = `<h3>Imagens do card</h3>`;
-  if (!slots.length) h += `<p class="vazio">Este modelo é só texto. Clique nos textos do card para editar.</p>`;
+  const dica = slots.length
+    ? 'Valem só para este card. Clique numa área vazia do card para adicionar, arraste um arquivo sobre ela ou arraste a imagem para reenquadrar.'
+    : 'Este modelo é só texto. Clique nos textos do card para editar.';
+  let h = `<h3>Imagens do card <span class="card-tag">${String(pub.ativo + 1).padStart(2, '0')}</span>${info(dica)}</h3>`;
+  if (!slots.length) h += `<p class="vazio">Sem imagens neste modelo.</p>`;
   for (const [s, nome] of slots) {
     const im = c.imgs[s];
     const th = im ? fonteImagem(c, s) : null;
@@ -512,7 +518,6 @@ function renderImagens() {
       <label class="faixa">Vert. <input type="range" min="0" max="100" step="0.5" value="${im.y ?? 50}" data-faixa="y" data-slot="${s}"><output>${Math.round(im.y ?? 50)}</output></label>
     </div>`;
   }
-  if (slots.length) h += `<p class="dica">Clique numa área vazia do card para adicionar, arraste um arquivo sobre ela ou arraste a imagem para reenquadrar.</p>`;
   el.innerHTML = h;
 }
 
@@ -639,6 +644,7 @@ function mover(delta) {
   pub.ativo = j;
   salvar();
   renderTrilho();
+  renderImagens();
 }
 
 // ---- Upload ---------------------------------------------------------------
@@ -742,7 +748,7 @@ async function exportarTudo() {
 // Navegação
 
 function mostrar(vista) {
-  for (const v of ['login', 'inicio', 'editor']) document.body.classList.toggle('vista-' + v, vista === v);
+  for (const v of ['login', 'inicio', 'editor', 'padroes']) document.body.classList.toggle('vista-' + v, vista === v);
 }
 
 async function sairDoEditor() {
@@ -756,6 +762,13 @@ async function sairDoEditor() {
 async function rotear() {
   if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
   const m = location.hash.match(/^#\/p\/(.+)$/);
+  if (location.hash === '#/padroes') {
+    if (pub) await sairDoEditor();
+    document.title = 'Padrões · Universo';
+    mostrar('padroes');
+    renderPadroes($('#padroes'));
+    return;
+  }
   if (m) {
     if (pub?.id === m[1]) return;
     if (pub) await sairDoEditor();
@@ -861,6 +874,7 @@ function ligarEventos() {
 
   // Modelos
   $('#modelos').addEventListener('click', (e) => {
+    if (e.target.closest('.info')) return;
     const b = e.target.closest('[data-modelo]');
     if (b) aplicarModelo(b.dataset.modelo);
   });
@@ -1124,7 +1138,34 @@ async function migrar() {
 
 // ---------------------------------------------------------------------------
 
+/** Dica flutuante dos ícones (i): uma só, posicionada junto ao ícone, fora de qualquer recorte. */
+function ligarDicas() {
+  const el = $('#dicaFlut');
+  const mostrarDica = (alvo) => {
+    el.textContent = alvo.dataset.info;
+    el.classList.add('on');
+    const r = alvo.getBoundingClientRect();
+    const w = el.offsetWidth, hh = el.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2;
+    x = Math.max(8, Math.min(innerWidth - w - 8, x));
+    let y = r.bottom + 8;
+    if (y + hh > innerHeight - 8) y = r.top - hh - 8;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+  };
+  const esconder = () => el.classList.remove('on');
+  document.addEventListener('mouseover', (e) => { const a = e.target.closest?.('.info'); if (a) mostrarDica(a); });
+  document.addEventListener('mouseout', (e) => { if (e.target.closest?.('.info')) esconder(); });
+  document.addEventListener('focusin', (e) => { const a = e.target.closest?.('.info'); if (a) mostrarDica(a); });
+  document.addEventListener('focusout', (e) => { if (e.target.closest?.('.info')) esconder(); });
+  document.addEventListener('scroll', esconder, true);
+  // dentro de um <label>, o (i) não marca a caixa nem foca o campo
+  document.addEventListener('click', (e) => { if (e.target.closest?.('label .info')) e.preventDefault(); });
+}
+
 async function iniciar() {
+  instalarPadroes();
+  ligarDicas();
   $('#marcaSelo').innerHTML = mark('mao', 24);
   $('#loginSelo').innerHTML = mark('mao', 30);
   status('pronto');

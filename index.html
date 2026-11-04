@@ -17,7 +17,7 @@
       <span class="marca-sub">Odisse</span>
     </a>
     <nav class="menu" aria-label="Menu geral">
-      <a class="ativo" href="#/" aria-current="page">Posts 3:4</a>
+      <a class="ativo" href="#/" aria-current="page" id="menuPosts">Posts 3:4</a>
       <span class="em-breve" title="Em breve">Stories 9:16</span>
       <span class="em-breve" title="Em breve">Calendário</span>
       <span class="em-breve" title="Em breve">Biblioteca</span>
@@ -43,9 +43,9 @@
   <!-- ===================== INÍCIO: criar + arquivo ===================== -->
   <main class="inicio" id="inicio">
     <section class="criar">
-      <div class="sec-cab">
-        <h1>Nova publicação</h1>
-        <p>Escolha o núcleo. O carrossel já começa com o repertório de modelos dele.</p>
+      <div class="sec-cab linha">
+        <h1>Nova publicação <span class="info" tabindex="0" data-info="Escolha o núcleo. O carrossel já começa com o repertório de modelos dele.">i</span></h1>
+        <a class="bt-padroes" href="#/padroes">Padrões de texto e espaçamento</a>
       </div>
       <div class="nucleo-tiles" id="tiles"></div>
     </section>
@@ -65,6 +65,9 @@
     </section>
   </main>
 
+  <!-- ===================== PADRÕES ===================== -->
+  <main class="padroes" id="padroes"></main>
+
   <!-- ===================== EDITOR ===================== -->
   <div class="pub-barra" id="pubBarra">
     <a class="voltar" href="#/">← Publicações</a>
@@ -82,10 +85,14 @@
   <main class="editor" id="editor">
     <aside class="lado esq">
       <div class="lado-cab">
-        <h2>Informações padrão</h2>
-        <p>Valem para todos os cards desta publicação.</p>
+        <h2>Informações <span class="info" tabindex="0" data-info="Publicação e Fechamento valem para todos os cards. Imagens do card valem só para o card selecionado.">i</span></h2>
       </div>
-      <div class="lado-corpo" id="globais"></div>
+      <div class="lado-corpo" id="globais">
+        <div id="globaisPub"></div>
+        <div class="imagens" id="imagens"></div>
+        <div id="globaisFech"></div>
+        <div id="registro"></div>
+      </div>
     </aside>
 
     <section class="palco" id="palco">
@@ -122,12 +129,10 @@
 
     <aside class="lado dir">
       <div class="lado-cab">
-        <h2>Modelos</h2>
-        <p>Clique para aplicar ao card selecionado.</p>
+        <h2>Modelos <span class="info" tabindex="0" data-info="Clique num modelo para aplicá-lo ao card selecionado.">i</span></h2>
       </div>
       <div class="lado-corpo">
         <div id="modelos"></div>
-        <div class="imagens" id="imagens"></div>
       </div>
     </aside>
   </main>
@@ -135,6 +140,7 @@
   <div id="exportador" aria-hidden="true"></div>
   <input type="file" id="arquivo" accept="image/*" hidden>
   <div class="aviso" id="aviso" role="status"></div>
+  <div class="dica-flut" id="dicaFlut" role="tooltip"></div>
 
   <script src="vendor/html-to-image.js"></script>
   <script src="vendor/jszip.min.js"></script>

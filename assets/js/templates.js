@@ -4,19 +4,24 @@
 
 import { COR, tintaSobre } from './nucleos.js';
 import { mark } from './marks.js';
+import { E, TEXTO_POR_CLASSE, corpoMin, corpoMax } from './padroes.js';
 
+// Todo espaçamento vem de padroes.js (E.bloco, E.proximo…). Nenhum valor solto nos modelos.
 export const LARG = 1080;
 export const ALT = 1440;
-const M = 52;
-const COLW = (LARG - 2 * M - 11 * 16) / 12; // 66,67
-export const X = (c) => M + (c - 1) * (COLW + 16);
-export const W = (a, b) => (b - a + 1) * COLW + (b - a) * 16;
+const M = E.margem;
+const G = E.gutter;
+const COLW = (LARG - 2 * M - 11 * G) / 12; // 66,67
+export const X = (c) => M + (c - 1) * (COLW + G);
+export const W = (a, b) => (b - a + 1) * COLW + (b - a) * G;
 const W12 = W(1, 12);
-const CORTE = 8;
+const CORTE = E.corte;
+const TOPO = E.topo;
+const px = (k) => `${E[k]}px`;
 // cortes verticais no meio do gutter
-const C4 = X(5) - 8;  // entre as colunas 4 e 5
-const C6 = X(7) - 8;  // entre 6 e 7 (meio do card)
-const C8 = X(9) - 8;  // entre 8 e 9
+const C4 = X(5) - G / 2;  // entre as colunas 4 e 5
+const C6 = X(7) - G / 2;  // entre 6 e 7 (meio do card)
+const C8 = X(9) - G / 2;  // entre 8 e 9
 const h2 = CORTE / 2;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -43,7 +48,12 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
 
     campo(chave, classe, estilo = '', opc = {}) {
       const valor = card.campos?.[chave] ?? '';
-      const fit = opc.fit ? ` data-fit="${opc.fit.join(',')}"` : '';
+      // opc.fit = altura máxima da área; o corpo vai do máximo ao mínimo do estilo (padroes.js)
+      let fit = '';
+      if (opc.fit) {
+        const est = TEXTO_POR_CLASSE[classe.split(' ').find((c) => TEXTO_POR_CLASSE[c])];
+        fit = ` data-fit="${corpoMin(est)},${corpoMax(est)},${opc.fit}"`;
+      }
       const ph = esc(String(opc.ph ?? modelo.exemplo?.[chave] ?? '').replace(/<[^>]+>/g, ''));
       if (!editavel && !valor) return '';
       const attrs = editavel ? ` contenteditable="true" spellcheck="true" data-campo="${chave}" data-ph="${ph}"` : '';
@@ -65,7 +75,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
 
     img(slot, x, y, w, h, opc = {}) {
       const im = card.imgs?.[slot];
-      const segue = opc.segue ? ` data-segue="${opc.segue}" data-gap="${opc.gap ?? 96}" data-fim="${y + h}"` : '';
+      const segue = opc.segue ? ` data-segue="${opc.segue}" data-gap="${opc.gap ?? E.bloco}" data-fim="${y + h}"` : '';
       const base = `class="slot${opc.contain ? ' contain' : ''}" style="${pos(x, y, w, h)}${opc.fundo ? `background:${opc.fundo};` : ''}" data-slot="${slot}"${segue}`;
       const src = im && (im.ref || im.src) ? fonteImagem(card, slot) : null;
       if (src) {
@@ -102,12 +112,12 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         <div class="cab dir" style="right:${M}px;color:${corDir}">${dir}</div>`;
     },
 
-    /** Selo centrado no rodapé, faixa y 1340–1408. Post único: mão. */
+    /** Selo centrado no rodapé, com o centro a E.selo da base. Post único: mão. */
     selo(cor) {
       if (!g.selo) return '';
       const nome = unico ? 'mao' : n.selo;
       const h = nome === 'mao' ? 72 : 64;
-      return `<div class="selo" style="top:${1374 - h / 2}px;color:${cor}">${mark(nome, h)}</div>`;
+      return `<div class="selo" style="top:${ALT - E.selo - h / 2}px;color:${cor}">${mark(nome, h)}</div>`;
     },
 
     /** Assinatura: selo 46 px + rótulo (campo do card). */
@@ -145,12 +155,12 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       return `${t.fundo(n.fundo)}
         ${t.cab(A)}
         ${t.img('a', 0, 440, imgL, 544, { opcional: true })}
-        ${t.fluxo(X(4), 400, W(4, 12), 880, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:18px')}
-          ${t.global('contatoTitulo', 't-titulo t-titulo-m', 'margin-bottom:28px')}
-          ${t.global('contatoTexto', 't-texto', 'margin-bottom:44px')}
-          <div class="contatos" style="border-top:1.5px solid ${regraSobre(n.fundo)};padding-top:22px">${contatos}</div>
-          <div class="lockup" style="margin-top:auto;margin-bottom:${seloRodape ? 150 : 110}px">${lockup}</div>`)}
+        ${t.fluxo(X(4), 400, W(4, 12), (seloRodape ? 1130 : 1170) - 400, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.global('contatoTitulo', 't-chamada', `margin-bottom:${px('bloco')}`)}
+          ${t.global('contatoTexto', 't-texto', `margin-bottom:${px('bloco')}`)}
+          <div class="contatos" style="border-top:1.5px solid ${regraSobre(n.fundo)};padding-top:${px('filete')}">${contatos}</div>
+          <div class="lockup" style="margin-top:auto">${lockup}</div>`)}
         ${seloRodape ? t.selo(A) : ''}`;
     },
   };
@@ -171,19 +181,19 @@ const processo = (exemplo) => ({
       const y = 176 + i * 378;
       return `${t.img(s, 0, y, C6 - h2, 362, { fundo: COR.nevoa })}
         ${t.fluxo(X(8), y, W(8, 12), 362, A, `
-          <div style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:20px">
+          <div style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}">
             <div class="t-numero">0${i + 1}</div>
-            ${t.campo(`p${i + 1}r`, 't-rotulo', 'margin:18px 0 10px')}
+            ${t.campo(`p${i + 1}r`, 't-rotulo', `margin:${px('proximo')} 0 ${px('proximo')}`)}
             ${t.campo(`p${i + 1}t`, 't-texto')}
           </div>`)}`;
     }).join('');
     return `${t.fundo(COR.papel)}${t.cab(A)}
-      ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 128)}color:${A}`)}
+      ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, TOPO)}color:${A}`)}
       ${linhas}${t.selo(A)}`;
   },
 });
 
-const capaPapel = ({ exemplo, imgY = 562, imgH = 589, fit = [88, 104, 300] }) => ({
+const capaPapel = ({ exemplo, imgY = 562, imgH = 589, fit = 300 }) => ({
   id: 'capa-papel',
   nome: 'Capa sobre papel',
   desc: 'Título no alto, faixa de imagem e assinatura sob um filete.',
@@ -194,7 +204,7 @@ const capaPapel = ({ exemplo, imgY = 562, imgH = 589, fit = [88, 104, 300] }) =>
       ${t.fluxo(M, 190, W12, imgY - 230, A, t.campo('titulo', 't-capa', '', { fit }), 'fim')}
       ${t.img('a', 0, imgY, LARG, imgH)}
       ${t.regra(M, 1172, W12, A)}
-      ${t.assinatura(A, `position:absolute;${pos(M, 1194)}`)}
+      ${t.assinatura(A, `position:absolute;${pos(M, 1172 + E.filete)}`)}
       ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${A}`)}`;
   },
 });
@@ -210,9 +220,9 @@ const unicoTexto = ({ exemplo, fundo }) => ({
     const f = fundo(t), cor = tintaSobre(f);
     return `${t.fundo(f)}${t.cab(cor)}
       ${t.fluxo(M, 236, W12, 1004, cor, `
-        ${t.campo('rotulo', 't-rotulo', 'margin-bottom:18px')}
-        ${t.campo('titulo', 't-titulo', '', { fit: [96, 124, 460] })}
-        ${t.apoio('texto', 5, 'margin-top:40px')}
+        ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+        ${t.campo('titulo', 't-titulo', '', { fit: 460 })}
+        ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}
         ${t.ficha('f', 3, cor, regraSobre(f), { estilo: 'margin-top:auto' })}`)}
       ${t.selo(cor)}`;
   },
@@ -231,8 +241,8 @@ const imagemColuna = (exemplo) => ({
       ${t.img('a', 0, 0, C8 - h2, ALT)}
       ${t.veuTopo(200, 0.6, 0, C8 - h2)}${t.veuBase(340, 0.72, 0, C8 - h2)}
       ${t.cab(B, cor)}
-      ${t.fluxo(X(9), 130, W(9, 12), 1150, cor, `
-        ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
+      ${t.fluxo(X(9), TOPO, W(9, 12), 1150, cor, `
+        ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
         ${t.campo('texto', 't-texto')}`)}
       ${t.selo(B)}`;
   },
@@ -264,11 +274,11 @@ const desenho = {
   },
   render(t) {
     return `${t.fundo(COR.papel)}${t.cab(A)}
-      ${t.fluxo(M, 128, W(1, 6), 300, A, `
-        ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
+      ${t.fluxo(M, TOPO, W(1, 6), 300, A, `
+        ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
         ${t.campo('texto', 't-texto')}`)}
       ${t.img('b', X(9), 150, W(9, 11), 240, { contain: true, opcional: true })}
-      ${t.campo('planta', 't-rotulo', `position:absolute;${pos(X(9), 412)}color:${A}`)}
+      ${t.campo('planta', 't-rotulo', `position:absolute;${pos(X(9), 390 + E.proximo)}color:${A}`)}
       ${t.img('a', M, 440, W(1, 9), 840, { contain: true })}
       ${t.campo('cota', 't-rotulo', `position:absolute;${pos(X(10), 860)}color:${A}`)}
       ${t.selo(A)}`;
@@ -290,8 +300,8 @@ const ESTUDIO = [
         ${t.veuTopo()}${t.veuBase(760, 0.85)}
         ${t.cab(B)}
         ${t.fluxo(M, 180, W12, 1070, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:22px')}
-          ${t.campo('titulo', 't-capa', '', { fit: [120, 150, 520] })}`, 'fim')}
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-capa', '', { fit: 520 })}`, 'fim')}
         ${t.selo(B)}`;
     },
   },
@@ -304,8 +314,8 @@ const ESTUDIO = [
     render(t) {
       return `${t.fundo(A)}${t.cab(B)}
         ${t.fluxo(M, 200, W12, 360, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: [110, 150, 290] })}
-          ${t.campo('rotulo', 't-rotulo', 'margin-top:26px')}`)}
+          ${t.campo('titulo', 't-capa', '', { fit: 290 })}
+          ${t.campo('rotulo', 't-rotulo', `margin-top:${px('assinatura')}`)}`)}
         ${t.img('a', 0, 580, C6 - h2, 590)}
         ${t.img('b', C6 + h2, 580, LARG - C6 - h2, 590)}
         ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1206)}color:${B}`)}
@@ -381,9 +391,9 @@ const ESTUDIO = [
       return `${t.fundo(A)}
         ${t.img('a', 0, 0, LARG, 498)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, 562, W12, 700, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:16px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [64, 84, 280] })}
+        ${t.fluxo(M, 498 + E.bloco, W12, 1300 - 498 - E.bloco, B, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 280 })}
           ${t.ficha('f', 5, B, regraSobre(A), { estilo: 'margin-top:auto' })}`)}
         ${t.selo(B)}`;
     },
@@ -405,10 +415,10 @@ const ESTUDIO = [
     render(t) {
       return `${t.fundo(A)}${t.cab(B)}
         ${t.fluxo(M, 236, W12, 980, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:16px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [64, 84, 300] })}
-          ${t.apoio('texto', 5, 'margin-top:44px')}
-          ${t.ficha('f', 5, B, regraSobre(A), { estilo: 'margin-top:auto', linha: 'padding:26px 0 24px' })}`)}
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 300 })}
+          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}
+          ${t.ficha('f', 5, B, regraSobre(A), { estilo: 'margin-top:auto' })}`)}
         ${t.selo(B)}`;
     },
   },
@@ -441,12 +451,12 @@ const ARQUITETOS = [
         ${t.veuTopo()}${t.veuBase(820, 0.8)}
         ${t.cab(B)}
         ${t.fluxo(M, 180, W12, 1060, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: [120, 150, 560] })}
-          ${t.assinatura(B, 'margin:30px 0 0')}`, 'fim')}`;
+          ${t.campo('titulo', 't-capa', '', { fit: 560 })}
+          ${t.assinatura(B, `margin-top:${px('assinatura')}`)}`, 'fim')}`;
     },
   },
   capaPapel({
-    imgY: 356, imgH: 795, fit: [80, 100, 120],
+    imgY: 356, imgH: 795, fit: 120,
     exemplo: { titulo: 'Um horizonte comum.', assin: 'Odisse Arquitetos · Apto RP 201', rodape: 'Projeto de interiores' },
   }),
   {
@@ -457,11 +467,11 @@ const ARQUITETOS = [
     exemplo: { titulo: 'Um<br>horizonte<br>comum.', assin: 'Odisse Arquitetos · Apto RP 201' },
     render(t) {
       return `${t.fundo(COR.areia)}${t.cab(A)}
-        ${t.fluxo(M, 200, W12, 520, A, t.campo('titulo', 't-capa', '', { fit: [120, 150, 470] }))}
+        ${t.fluxo(M, 200, W12, 520, A, t.campo('titulo', 't-capa', '', { fit: 470 }))}
         ${t.img('a', 0, 770, C4 - h2, 360)}
         ${t.img('b', C4 + h2, 770, C8 - C4 - CORTE, 360)}
         ${t.img('c', C8 + h2, 770, LARG - C8 - h2, 360)}
-        ${t.assinatura(A, `position:absolute;${pos(M, 1172)}`)}`;
+        ${t.assinatura(A, `position:absolute;${pos(M, 1130 + E.assinatura)}`)}`;
     },
   },
   {
@@ -477,19 +487,19 @@ const ARQUITETOS = [
       c2r: 'A solução', c2t: 'A planta abre sala, jantar e cozinha para o mesmo horizonte e redistribui a vista.',
     },
     render(t) {
-      const col = (i, x, w) => `${t.fluxo(x, 1150, w, 200, A, `
-        <div style="border-top:1.5px solid ${A};padding-top:22px">
-          ${t.campo(`c${i}r`, 't-rotulo', 'margin-bottom:12px')}
+      const col = (i) => `<div style="border-top:1.5px solid ${A};padding-top:${px('filete')}">
+          ${t.campo(`c${i}r`, 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo(`c${i}t`, 't-legenda')}
-        </div>`)}`;
+        </div>`;
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 820)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, 872, W12, 250, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:10px')}
-          ${t.campo('titulo', 't-capa', '', { fit: [96, 128, 130] })}
-          ${t.campo('sub', 't-legenda', 'margin-top:14px')}`)}
-        ${col(1, M, W(1, 6))}${col(2, X(7), W(7, 12))}`;
+        ${t.fluxo(M, 820 + E.bloco, W12, 1300 - 820 - E.bloco, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-capa', '', { fit: 130 })}
+          ${t.campo('sub', 't-legenda', `margin-top:${px('proximo')}`)}
+          <div style="display:grid;grid-template-columns:${W(1, 6)}px ${W(7, 12)}px;column-gap:${G}px;margin-top:${px('bloco')}">${col(1)}${col(2)}</div>`)}
+        ${t.selo(A)}`;
     },
   },
   {
@@ -504,12 +514,12 @@ const ARQUITETOS = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt', gap: 96 })}
+        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt' })}
         ${t.cab(A)}
-        ${t.fluxo(M, 128, W12, 700, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:14px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.apoio('texto', 7, 'margin-top:26px')}`, '', 'txt')}
+        ${t.fluxo(M, TOPO, W12, 700, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -527,10 +537,10 @@ const ARQUITETOS = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 820)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, 872, W12, 420, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:14px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.apoio('texto', 7, 'margin-top:28px')}`)}
+        ${t.fluxo(M, 820 + E.bloco, W12, 420, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
         ${t.selo(A)}`;
     },
   },
@@ -546,18 +556,19 @@ const ARQUITETOS = [
       texto: 'É a soma de programas distintos que encontram no mar seu horizonte comum.',
     },
     render(t) {
-      const y = 438, hh = 544;
+      const y = 438, hh = 544, ly = y + hh + E.proximo;
+      const seg = { segue: 'tit' };
       return `${t.fundo(COR.papel)}${t.cab(A)}
-        ${t.fluxo(M, 128, W12, 300, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:14px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}`)}
-        ${t.img('a', 0, y, C4 - h2, hh)}
-        ${t.img('b', C4 + h2, y, C8 - C4 - CORTE, hh)}
-        ${t.img('c', C8 + h2, y, LARG - C8 - h2, hh)}
-        ${t.campo('l1', 't-rotulo', `position:absolute;${pos(M, y + hh + 24)}color:${A}`)}
-        ${t.campo('l2', 't-rotulo', `position:absolute;${pos(X(5), y + hh + 24)}color:${A}`)}
-        ${t.campo('l3', 't-rotulo', `position:absolute;${pos(X(9), y + hh + 24)}color:${A}`)}
-        ${t.fluxo(M, 1094, W12, 220, A, t.apoio('texto', 7))}
+        ${t.fluxo(M, TOPO, W12, 300, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}`, '', 'tit')}
+        ${t.img('a', 0, y, C4 - h2, hh, seg)}
+        ${t.img('b', C4 + h2, y, C8 - C4 - CORTE, hh, seg)}
+        ${t.img('c', C8 + h2, y, LARG - C8 - h2, hh, seg)}
+        ${t.campo('l1', 't-rotulo', `position:absolute;${pos(M, ly)}color:${A}`)}
+        ${t.campo('l2', 't-rotulo', `position:absolute;${pos(X(5), ly)}color:${A}`)}
+        ${t.campo('l3', 't-rotulo', `position:absolute;${pos(X(9), ly)}color:${A}`)}
+        ${t.fluxo(M, ly + 24 + E.bloco, W12, 220, A, t.apoio('texto', 7))}
         ${t.selo(A)}`;
     },
   },
@@ -574,11 +585,11 @@ const ARQUITETOS = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}${t.cab(A)}
-        ${t.img('a', 0, 128, C8 - h2, 1170)}
-        ${t.fluxo(X(9), 136, W(9, 12), 1162, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
+        ${t.img('a', 0, TOPO, C8 - h2, 1170)}
+        ${t.fluxo(X(9), TOPO, W(9, 12), 1170, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('texto', 't-texto')}
-          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:14px;font-size:20px`)}`)}
+          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}`)}`)}
         ${t.selo(A)}`;
     },
   },
@@ -594,12 +605,12 @@ const ARQUITETOS = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}${t.cab(A)}
-        ${t.img('a', 0, 128, C8 - h2, 581)}
-        ${t.img('b', 0, 717, C8 - h2, 581)}
-        ${t.fluxo(X(9), 136, W(9, 12), 1162, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
+        ${t.img('a', 0, TOPO, C8 - h2, 581)}
+        ${t.img('b', 0, TOPO + 581 + CORTE, C8 - h2, 581)}
+        ${t.fluxo(X(9), TOPO, W(9, 12), 1170, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('texto', 't-texto')}
-          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:14px;font-size:20px`)}`)}
+          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}`)}`)}
         ${t.selo(A)}`;
     },
   },
@@ -617,9 +628,9 @@ const ARQUITETOS = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 558)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 596)}color:${A}`)}
-        ${t.fluxo(X(5), 590, W(5, 12), 200, A, t.campo('texto', 't-texto'))}
-        ${t.img('b', 0, 802, LARG, 498)}
+        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 558 + E.bloco)}color:${A}`)}
+        ${t.fluxo(X(5), 558 + E.bloco, W(5, 12), 200, A, t.campo('texto', 't-texto'), '', 'txt')}
+        ${t.img('b', 0, 802, LARG, 498, { segue: 'txt' })}
         ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${A}`)}
         ${t.selo(A)}`;
     },
@@ -659,8 +670,8 @@ const ARQUITETOS = [
     },
     render(t) {
       return `${t.fundo(A)}${t.cab(B)}
-        ${t.fluxo(M, 150, W12, 1150, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 250] })}
+        ${t.fluxo(M, TOPO, W12, 1172, B, `
+          ${t.campo('titulo', 't-titulo', '', { fit: 250 })}
           ${t.ficha('f', 6, B, regraSobre(A), { estilo: 'margin-top:auto', distribuir: true })}`)}
         ${t.selo(B)}`;
     },
@@ -689,7 +700,7 @@ const OBJETOS = [
       return `${t.img('a', 0, 0, LARG, ALT, { fundo: '#EDEDEB' })}
         ${t.veuBase(520, 0.7)}
         ${t.cab(A)}
-        ${t.fluxo(M, 180, W12, 360, A, t.campo('titulo', 't-capa', '', { fit: [110, 140, 320] }))}
+        ${t.fluxo(M, 180, W12, 360, A, t.campo('titulo', 't-capa', '', { fit: 320 }))}
         ${t.assinatura(B, `position:absolute;${pos(M, 1198)}`)}`;
     },
   },
@@ -705,13 +716,13 @@ const OBJETOS = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}
-        ${t.painel(0, 0, LARG, 578, COR.grafite, ' data-segue="txt" data-gap="64" data-modo="altura"')}
-        ${t.img('a', 0, 586, LARG, 854, { fundo: '#EDEDEB', segue: 'txt', gap: 72 })}${t.veuBase()}
+        ${t.painel(0, 0, LARG, 578, COR.grafite, ` data-segue="txt" data-gap="${E.bloco}" data-modo="altura"`)}
+        ${t.img('a', 0, 586, LARG, 854, { fundo: '#EDEDEB', segue: 'txt', gap: E.bloco + CORTE })}${t.veuBase()}
         ${t.cab(B)}
-        ${t.fluxo(M, 128, W12, 700, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.apoio('texto', 7, 'margin-top:22px')}`, '', 'txt')}
+        ${t.fluxo(M, TOPO, W12, 700, B, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -729,10 +740,10 @@ const OBJETOS = [
       return `${t.fundo(COR.grafite)}
         ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB' })}
         ${t.cab(A)}
-        ${t.fluxo(M, 816, W12, 470, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 230] })}
-          ${t.apoio('texto', 5, 'margin-top:28px')}`)}
+        ${t.fluxo(M, 760 + E.bloco, W12, 1300 - 760 - E.bloco, B, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
+          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`)}
         ${t.selo(B)}`;
     },
   },
@@ -749,9 +760,9 @@ const OBJETOS = [
     },
     render(t) {
       return `${t.fundo(COR.grafite)}${t.cab(B)}
-        ${t.fluxo(M, 128, W(1, 11), 490, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 430] })}`)}
+        ${t.fluxo(M, TOPO, W(1, 11), 490, B, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 430 })}`)}
         ${t.fluxo(M, 644, W(1, 5), 400, B, t.campo('texto', 't-texto'))}
         ${t.img('a', X(7), 640, W(7, 12), 640)}
         ${t.selo(B)}`;
@@ -769,10 +780,10 @@ const OBJETOS = [
     },
     render(t) {
       return `${t.fundo(COR.grafite)}${t.cab(B)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 128)}color:${B}`)}
+        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, TOPO)}color:${B}`)}
         ${t.fluxo(M, 400, W12, 700, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 430] })}
-          ${t.apoio('texto', 7, 'margin-top:50px')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 430 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
         ${t.selo(B)}`;
     },
   },
@@ -802,8 +813,8 @@ const OBJETOS = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, C4 - h2, ALT)}${t.veuTopo(200, 0.6, 0, C4 - h2)}
         ${t.cab(B, A)}
-        ${t.fluxo(X(5), 128, W(5, 12), 1150, A, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:22px')}
+        ${t.fluxo(X(5), TOPO, W(5, 12), 1150, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.ficha('f', 7, A, regraSobre(COR.papel), { empilhada: true })}`)}
         ${t.selo(A)}`;
     },
@@ -826,7 +837,7 @@ const OBJETOS = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 698, { fundo: '#EDEDEB' })}
         ${t.cab(A)}
-        ${t.fluxo(M, 730, W12, 570, A, t.ficha('f', 7, A, regraSobre(COR.papel), { linha: 'padding:16px 0 14px' }))}
+        ${t.fluxo(M, 698 + E.bloco, W12, 1300 - 698 - E.bloco, A, t.ficha('f', 7, A, regraSobre(COR.papel)))}
         ${t.selo(A)}`;
     },
   },
@@ -855,11 +866,11 @@ const OBJETOS = [
       return `${t.fundo(COR.grafite)}
         ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB' })}
         ${t.cab(A)}
-        ${t.fluxo(M, 816, W12, 470, B, `
-          ${t.campo('rotulo', 't-rotulo', 'margin-bottom:12px')}
-          ${t.campo('titulo', 't-titulo', '', { fit: [96, 124, 140] })}
-          ${t.apoio('texto', 5, 'margin-top:34px')}
-          ${t.campo('link', 't-rotulo', `margin:auto 0 70px ${X(5) - M}px`)}`)}
+        ${t.fluxo(M, 760 + E.bloco, W12, 1300 - 760 - E.bloco, B, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 140 })}
+          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}
+          ${t.campo('link', 't-rotulo', `margin:auto 0 ${px('bloco')} ${X(5) - M}px`)}`)}
         ${t.selo(B)}`;
     },
   },
@@ -884,8 +895,8 @@ const ELAIA = [
         ${t.veuTopo()}${t.veuBase(900, 0.8)}
         ${t.cab(B)}
         ${t.fluxo(M, 180, W12, 1062, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: [110, 130, 600] })}
-          ${t.assinatura(B, 'margin:34px 0 0')}`, 'fim')}
+          ${t.campo('titulo', 't-capa', '', { fit: 600 })}
+          ${t.assinatura(B, `margin-top:${px('assinatura')}`)}`, 'fim')}
         ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${B}`)}`;
     },
   },
@@ -907,11 +918,11 @@ const ELAIA = [
     },
     render(t) {
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 762, LARG, 678, { segue: 'txt', gap: 96 })}${t.veuBase()}
+        ${t.img('a', 0, 762, LARG, 678, { segue: 'txt' })}${t.veuBase()}
         ${t.cab(A)}
-        ${t.fluxo(M, 128, W12, 800, A, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.apoio('texto', 5, 'margin-top:26px')}`, '', 'txt')}
+        ${t.fluxo(M, TOPO, W12, 800, A, `
+          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
+          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`, '', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -928,9 +939,9 @@ const ELAIA = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 660)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, 700, W12, 600, A, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.campo('texto', 't-texto', 'margin-top:28px')}`)}
+        ${t.fluxo(M, 660 + E.bloco, W12, 600, A, `
+          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
+          ${t.campo('texto', 't-texto', `margin-top:${px('bloco')}`)}`)}
         ${t.selo(A)}`;
     },
   },
@@ -947,8 +958,8 @@ const ELAIA = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 880)}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 930)}color:${A}`)}
-        ${t.fluxo(X(4), 922, W(4, 12), 380, A, t.campo('texto', 't-texto'))}
+        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 880 + E.bloco)}color:${A}`)}
+        ${t.fluxo(X(4), 880 + E.bloco, W(4, 12), 380, A, t.campo('texto', 't-texto'))}
         ${t.selo(A)}`;
     },
   },
@@ -965,9 +976,9 @@ const ELAIA = [
       return `${t.img('a', 0, 0, LARG, ALT)}
         ${t.veuTopo(760, 0.6)}${t.veuBase()}
         ${t.cab(B)}
-        ${t.fluxo(M, 140, W12, 700, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.apoio('texto', 7, 'margin-top:30px')}`)}
+        ${t.fluxo(M, TOPO, W12, 700, B, `
+          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
         ${t.selo(B)}`;
     },
   },
@@ -985,8 +996,8 @@ const ELAIA = [
         ${t.veuTopo()}${t.veuBase(860, 0.82)}
         ${t.cab(B)}
         ${t.fluxo(M, 180, W(1, 11), 1000, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: [88, 104, 340] })}
-          ${t.campo('texto', 't-texto', 'margin-top:28px')}`, 'fim')}
+          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
+          ${t.campo('texto', 't-texto', `margin-top:${px('bloco')}`)}`, 'fim')}
         ${t.selo(B)}`;
     },
   },
@@ -1005,8 +1016,8 @@ const ELAIA = [
     },
     render(t) {
       return `${t.fundo(COR.pessego)}${t.cab(A)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 128)}color:${A}`)}
-        ${t.fluxo(M, 400, W12, 700, A, t.campo('citacao', 't-citacao', '', { fit: [52, 70, 700] }))}
+        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, TOPO)}color:${A}`)}
+        ${t.fluxo(M, 400, W12, 700, A, t.campo('citacao', 't-citacao', '', { fit: 700 }))}
         ${t.selo(A)}`;
     },
   },
@@ -1024,9 +1035,9 @@ const ELAIA = [
     render(t) {
       return `${t.fundo(COR.pessego)}${t.cab(A)}
         ${t.img('a', X(2), 100, W(2, 11), 610, { contain: true })}
-        ${t.fluxo(M, 722, W12, 580, A, `
-          ${t.campo('texto', 't-texto', 'margin-bottom:40px')}
-          ${t.ficha('f', 3, A, regraSobre(COR.pessego), { linha: 'padding:20px 0 34px' })}`)}
+        ${t.fluxo(M, 710 + E.bloco, W12, 1300 - 710 - E.bloco, A, `
+          ${t.campo('texto', 't-texto', `margin-bottom:${px('bloco')}`)}
+          ${t.ficha('f', 3, A, regraSobre(COR.pessego))}`)}
         ${t.selo(A)}`;
     },
   },
@@ -1057,10 +1068,13 @@ const ELAIA = [
         ${t.img('a', 0, 620, LARG, 820, { fundo: COR.ocre })}
         ${t.veuBase(300, 0.5)}
         ${t.cab(A)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 150)}color:${A}`)}
-        ${t.fluxo(M, 182, W12, 160, A, t.campo('titulo', 't-capa', 'white-space:nowrap', { fit: [100, 150, 160] }))}
-        ${t.fluxo(M, 350, W(1, 6), 220, A, t.campo('sub', 't-titulo t-titulo-m', 'font-size:60px'))}
-        ${t.fluxo(X(7), 344, W(7, 12), 240, A, t.ficha('f', 2, A, regraSobre(COR.pessego), { empilhada: true, valor: 't-legenda' }))}
+        ${t.fluxo(M, TOPO, W12, 620 - TOPO - E.bloco, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-capa', 'white-space:nowrap', { fit: 160 })}
+          <div style="display:grid;grid-template-columns:${W(1, 6)}px ${W(7, 12)}px;column-gap:${G}px;margin-top:${px('bloco')};align-items:start">
+            ${t.campo('sub', 't-chamada') || '<div></div>'}
+            ${t.ficha('f', 2, A, regraSobre(COR.pessego), { empilhada: true, valor: 't-legenda' })}
+          </div>`)}
         ${t.selo(B)}`;
     },
   },
