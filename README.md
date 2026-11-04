@@ -2,12 +2,12 @@
 
 Plataforma de gestão de marketing e aceleração de produção de mídias do **Odisse — Estúdio de Arquitetura & Design**.
 
-A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 px). Ele segue o *Manual do sistema* (v1, out. 2026): grid de 12 colunas, Inter, ardósia como tinta, um registro por núcleo e os 14 modelos de card.
+A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 px). Ele segue o *Manual do sistema* (v1, out. 2026): grid de 12 colunas, Inter, ardósia como tinta, um registro por núcleo e o repertório de modelos de cada um.
 
 ## Como usar
 
 1. **Núcleo:** escolha na faixa abaixo do menu entre Odisse Estúdio, Arquitetos, Objetos ou Elaia. Cada núcleo tem o próprio carrossel e as próprias informações padrão. Painel, véu, tratamento de imagem e selo mudam sozinhos.
-2. **Informações padrão (à esquerda):** projeto ou série, assunto, aviso do post único, data de publicação, contador, selo e contatos do fechamento. Valem para todos os cards. Clicar num desses textos no canvas leva direto ao campo certo.
+2. **Informações padrão (à esquerda):** projeto ou série, data de publicação, contador, selo e contatos do fechamento. O aviso do post único (Prêmio, Lançamento…) é escrito direto no cabeçalho do card. Valem para todos os cards. Clicar num desses textos no canvas leva direto ao campo certo.
 3. **Modelos (à direita):** cada núcleo tem o próprio repertório, tirado do `post-3x4-templates`. Clique num modelo para aplicá-lo ao card selecionado. O texto que você já escreveu é mantido quando o campo existe no novo modelo.
 4. **Canvas:**
    - **Texto:** clique e escreva. Enter quebra a linha e Ctrl/Cmd + B põe em negrito. O corpo do título se ajusta à faixa do manual (88–132 px).
