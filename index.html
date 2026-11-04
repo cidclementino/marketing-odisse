@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Universo · Posts 3:4</title>
+  <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/card.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <!-- Menu geral: no futuro, outras páginas entram aqui -->
+  <header class="topo">
+    <a class="marca" href="./">
+      <span class="marca-selo" id="marcaSelo"></span>
+      <span class="marca-nome">Universo</span>
+      <span class="marca-sub">Odisse</span>
+    </a>
+    <nav class="menu" aria-label="Menu geral">
+      <a class="ativo" href="./" aria-current="page">Posts 3:4</a>
+      <span class="em-breve" title="Em breve">Stories 9:16</span>
+      <span class="em-breve" title="Em breve">Calendário</span>
+      <span class="em-breve" title="Em breve">Biblioteca</span>
+      <span class="em-breve" title="Em breve">Estratégia</span>
+    </nav>
+    <div class="topo-acoes">
+      <span class="salvo" id="salvo">Salvo neste navegador</span>
+    </div>
+  </header>
+
+  <!-- Os quatro núcleos -->
+  <nav class="nucleos" id="nucleos" aria-label="Núcleos"></nav>
+
+  <main class="editor">
+    <!-- Informações padrão, repetidas em todos os cards -->
+    <aside class="lado esq" id="ladoEsq">
+      <div class="lado-cab">
+        <h2>Informações padrão</h2>
+        <p>Valem para todos os cards deste núcleo.</p>
+      </div>
+      <div class="lado-corpo" id="globais"></div>
+    </aside>
+
+    <!-- Canvas -->
+    <section class="palco">
+      <div class="barra">
+        <div class="barra-g">
+          <span class="posicao" id="posicao"></span>
+          <span class="modelo-atual" id="modeloAtual"></span>
+        </div>
+        <div class="barra-g">
+          <button class="ico" id="btMoverEsq" title="Mover para a esquerda">←</button>
+          <button class="ico" id="btMoverDir" title="Mover para a direita">→</button>
+          <button class="txt" id="btDuplicar" title="Duplicar card">Duplicar</button>
+          <button class="txt perigo" id="btExcluir" title="Excluir card">Excluir</button>
+        </div>
+        <div class="barra-g">
+          <div class="seg" role="group" aria-label="Visualização" id="modos">
+            <button data-modo="1" title="Um card centralizado">1</button>
+            <button data-modo="3" title="Até três cards">3</button>
+            <button data-modo="todos" title="Todos em linha, como carrossel">Todos</button>
+          </div>
+        </div>
+        <div class="barra-g">
+          <button class="txt" id="btExportarCard">Exportar card</button>
+          <button class="txt forte" id="btExportarTudo">Exportar carrossel</button>
+        </div>
+      </div>
+      <div class="trilho-wrap" id="trilhoWrap">
+        <button class="nav-seta esq" id="navEsq" aria-label="Card anterior">‹</button>
+        <div class="trilho" id="trilho"></div>
+        <button class="nav-seta dir" id="navDir" aria-label="Próximo card">›</button>
+      </div>
+      <div class="pontos" id="pontos"></div>
+    </section>
+
+    <!-- Modelos disponíveis -->
+    <aside class="lado dir" id="ladoDir">
+      <div class="lado-cab">
+        <h2>Modelos</h2>
+        <p>Clique para aplicar ao card selecionado.</p>
+      </div>
+      <div class="lado-corpo">
+        <div class="modelos" id="modelos"></div>
+        <div class="imagens" id="imagens"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="exportador" aria-hidden="true"></div>
+  <input type="file" id="arquivo" accept="image/*" hidden>
+  <div class="aviso" id="aviso" role="status"></div>
+
+  <script src="vendor/html-to-image.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
