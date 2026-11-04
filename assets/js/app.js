@@ -63,43 +63,55 @@ async function novaPublicacao(nucleoId) {
 const tituloDe = (p) => p.titulo || p.globais?.projeto || 'Sem título';
 
 // ---------------------------------------------------------------------------
-// Salvamento: local imediato, nuvem com atraso
+// Salvamento
+// - rascunho: cada alteração vai para o navegador (IndexedDB), automaticamente;
+// - nuvem: ao criar, no botão Salvar (Ctrl+S), ao exportar, ao sair do editor
+//   e a cada 20 minutos se houver alteração.
 
-let timerLocal, timerNuvem, sujoNuvem = false;
+const AUTOSALVAR_MIN = 20;
+let timerLocal;
+const pendente = () => !!pub && (pub.atualizado || '') > (pub.salvoEm || '');
+
 function salvar() {
   if (!pub) return;
   pub.atualizado = new Date().toISOString();
-  status('salvando');
+  status('pendente');
   clearTimeout(timerLocal);
   timerLocal = setTimeout(async () => {
     await local.gravarPub(pub);
     await local.gravarMeta('globais:' + pub.nucleo, pub.globais);
-    if (!nuvem.ativa()) status('local');
   }, 350);
-  if (nuvem.ativa()) {
-    sujoNuvem = true;
-    clearTimeout(timerNuvem);
-    timerNuvem = setTimeout(sincronizarPub, 3500);
-  }
 }
 
-async function sincronizarPub() {
-  if (!pub || !nuvem.ativa() || !sujoNuvem) return;
-  sujoNuvem = false;
+let salvando = null;
+async function salvarNaNuvem({ silencioso = false } = {}) {
+  if (!pub) return;
+  if (salvando) return salvando;
   const alvo = pub;
-  status('enviando');
-  try {
-    alvo.capa = await gerarCapa(alvo).catch(() => alvo.capa);
-    await local.gravarPub(alvo);
-    for (const ref of local.refsDe(alvo)) await garantirImagemNaNuvem(ref);
-    await nuvem.gravar(alvo);
-    status('nuvem');
-  } catch (e) {
-    console.warn(e);
-    sujoNuvem = true;
-    status('erro', e.message);
-  }
+  status('salvando');
+  salvando = (async () => {
+    try {
+      alvo.capa = await gerarCapa(alvo).catch(() => alvo.capa);
+      for (const ref of local.refsDe(alvo)) await garantirImagemNaNuvem(ref);
+      const marca = alvo.atualizado;
+      await nuvem.gravar({ ...alvo, salvoEm: marca });
+      alvo.salvoEm = marca;
+      await local.gravarPub(alvo);
+      status(pub === alvo && pendente() ? 'pendente' : 'salvo', alvo.salvoEm);
+      if (!silencioso) aviso('Publicação salva.');
+    } catch (e) {
+      console.warn(e);
+      if (e.message === 'senha incorreta') return sair();
+      status('erro', e.message);
+      if (!silencioso) aviso('Não foi possível salvar na nuvem. O rascunho continua neste computador.');
+    } finally {
+      salvando = null;
+    }
+  })();
+  return salvando;
 }
+
+setInterval(() => { if (pendente()) salvarNaNuvem({ silencioso: true }); }, AUTOSALVAR_MIN * 60 * 1000);
 
 const enviadas = new Set();
 async function garantirImagemNaNuvem(ref) {
@@ -111,16 +123,18 @@ async function garantirImagemNaNuvem(ref) {
 }
 
 function status(tipo, detalhe = '') {
-  const b = $('#sinc');
-  b.dataset.estado = tipo;
+  const el = $('#sinc');
+  el.dataset.estado = tipo;
+  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
   $('#sincTxt').textContent = {
+    pendente: 'Alterações não salvas',
     salvando: 'Salvando…',
-    enviando: 'Sincronizando…',
-    local: 'Salvo neste navegador',
-    nuvem: 'Salvo na nuvem',
-    erro: 'Erro ao sincronizar',
-  }[tipo] || tipo;
-  b.title = tipo === 'erro' ? `Não foi possível salvar na nuvem (${detalhe}). As alterações continuam salvas neste navegador.` : 'Armazenamento';
+    salvo: detalhe ? `Salvo às ${hora(detalhe)}` : 'Salvo',
+    erro: 'Erro ao salvar',
+    pronto: '',
+  }[tipo] ?? tipo;
+  el.title = tipo === 'erro' ? `Não foi possível salvar na nuvem (${detalhe}). O rascunho continua neste computador.` : '';
+  $('#btSalvar').disabled = tipo === 'salvando';
 }
 
 function aviso(msg) {
@@ -142,7 +156,7 @@ async function carregarImagens(p) {
     if (src) imagens.set(ref, src);
     else faltando.push(ref);
   }
-  if (faltando.length && nuvem.ativa()) {
+  if (faltando.length) {
     await Promise.all(faltando.map(async (ref) => {
       try {
         const src = await nuvem.baixarImg(ref);
@@ -219,18 +233,16 @@ let filtro = 'todos';
 
 async function carregarArquivo() {
   const locais = await local.listarPubs();
-  const mapa = new Map(locais.map((r) => [r.id, { ...r, origem: 'local' }]));
-  if (nuvem.ativa()) {
-    try {
-      const remotos = await nuvem.listar();
-      for (const r of remotos) {
-        const l = mapa.get(r.id);
-        if (!l || (r.atualizado || '') > (l.atualizado || '')) mapa.set(r.id, { ...r, origem: 'nuvem' });
-      }
-      status('nuvem');
-    } catch (e) {
-      status('erro', e.message);
+  const mapa = new Map(locais.map((r) => [r.id, { ...r, rascunho: (r.atualizado || '') > (r.salvoEm || '') }]));
+  try {
+    for (const r of await nuvem.listar()) {
+      const l = mapa.get(r.id);
+      if (!l || (r.atualizado || '') >= (l.atualizado || '')) mapa.set(r.id, { ...r, rascunho: false });
     }
+    status('pronto');
+  } catch (e) {
+    if (e.message === 'senha incorreta') return sair();
+    status('erro', e.message);
   }
   resumos = [...mapa.values()].sort((a, b) => (b.atualizado || '').localeCompare(a.atualizado || ''));
 }
@@ -254,9 +266,8 @@ function renderInicio() {
   const busca = $('#busca').value.trim().toLowerCase();
   const lista = resumos.filter((r) => (filtro === 'todos' || r.nucleo === filtro) && (!busca || (r.titulo || '').toLowerCase().includes(busca)));
   $('#arquivoInfo').textContent = resumos.length
-    ? `${resumos.length} ${resumos.length === 1 ? 'publicação' : 'publicações'}${nuvem.ativa() ? ' · na nuvem' : ' · neste navegador'}`
+    ? `${resumos.length} ${resumos.length === 1 ? 'publicação' : 'publicações'}`
     : 'Nenhuma publicação ainda.';
-  $('#avisoNuvem').hidden = nuvem.ativa();
 
   const data = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   $('#listaPubs').innerHTML = lista.length ? lista.map((r) => {
@@ -269,7 +280,7 @@ function renderInicio() {
       <div class="pub-info">
         <a href="#/p/${r.id}" class="pub-nome">${esc(r.titulo || 'Sem título')}</a>
         <span class="pub-meta"><i style="background:${n.painel}"></i>${n.nome} · ${r.ncards} cards</span>
-        <span class="pub-data">${data(r.atualizado)}</span>
+        <span class="pub-data">${data(r.atualizado)}${r.rascunho ? ' · <b class="rascunho" title="Há alterações deste computador que ainda não foram salvas na nuvem">não salvo</b>' : ''}</span>
       </div>
       <div class="pub-acoes">
         <button data-dup="${r.id}" title="Duplicar">Duplicar</button>
@@ -282,7 +293,7 @@ function renderInicio() {
 async function abrirPublicacao(id) {
   let p = await local.lerPub(id);
   const r = resumos.find((x) => x.id === id);
-  if (nuvem.ativa() && (!p || (r && (r.atualizado || '') > (p.atualizado || '')))) {
+  if (!p || (r && !r.rascunho && (r.atualizado || '') > (p.atualizado || ''))) {
     try {
       p = await nuvem.ler(id);
       await local.gravarPub(p);
@@ -295,6 +306,7 @@ async function abrirPublicacao(id) {
   pub = p;
   pub.ativo = Math.min(pub.ativo || 0, pub.cards.length - 1);
   mostrar('editor');
+  status(pendente() ? 'pendente' : 'salvo', pub.salvoEm);
   renderEditor();
 }
 
@@ -305,8 +317,9 @@ async function duplicarPublicacao(id) {
   const agora = new Date().toISOString();
   const copia = { ...structuredClone(p), id: uid('p'), titulo: `${tituloDe(p)} (cópia)`, criado: agora, atualizado: agora };
   copia.cards.forEach((c) => { c.id = uid('c'); });
+  copia.salvoEm = copia.atualizado;
   await local.gravarPub(copia);
-  if (nuvem.ativa()) nuvem.gravar(copia).catch(() => {});
+  await nuvem.gravar(copia).catch(() => { copia.salvoEm = ''; return local.gravarPub(copia); });
   await carregarArquivo();
   renderInicio();
   aviso('Publicação duplicada.');
@@ -320,7 +333,7 @@ async function excluirPublicacao(id, botao) {
     return;
   }
   await local.apagarPub(id);
-  if (nuvem.ativa()) await nuvem.apagar(id).catch((e) => aviso('Excluída aqui, mas não na nuvem: ' + e.message));
+  await nuvem.apagar(id).catch((e) => aviso('Excluída aqui, mas não na nuvem: ' + e.message));
   await carregarArquivo();
   renderInicio();
 }
@@ -644,7 +657,7 @@ async function receberArquivo(file, cardId, slot) {
   salvar();
   renderTrilho();
   renderImagens();
-  if (nuvem.ativa()) garantirImagemNaNuvem(ref).catch(() => {});
+  garantirImagemNaNuvem(ref).catch(() => {});
 }
 function abrirSeletor(cardId, slot) {
   destinoUpload = { cardId, slot };
@@ -661,7 +674,7 @@ function dataArquivo() {
   return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
 const nomeBase = () => slug(pub.titulo || pub.globais.projeto) || 'post';
-const nomeArquivo = (i) => `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${nomeBase()}.png`;
+const nomeArquivo = (i) => `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${nomeBase()}.jpg`;
 
 async function montarCard(p, i) {
   const host = $('#exportador');
@@ -675,13 +688,15 @@ async function montarCard(p, i) {
   return no;
 }
 
-async function gerarPng(i) {
+/** JPG otimizado: 1080 × 1440, sRGB, qualidade 0,86 (bom equilíbrio para o Instagram, que recomprime). */
+const QUALIDADE_JPG = 0.86;
+async function gerarJpg(i) {
   const no = await montarCard(pub, i);
-  const opc = { width: LARG, height: ALT, pixelRatio: 1, cacheBust: false, backgroundColor: COR.papel };
-  await window.htmlToImage.toPng(no, opc);
-  const url = await window.htmlToImage.toPng(no, opc);
+  const opc = { width: LARG, height: ALT, canvasWidth: LARG, canvasHeight: ALT, pixelRatio: 1, cacheBust: false, backgroundColor: COR.papel };
+  await window.htmlToImage.toCanvas(no, opc); // 1ª passada carrega as fontes
+  const canvas = await window.htmlToImage.toCanvas(no, opc);
   $('#exportador').innerHTML = '';
-  return url;
+  return new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', QUALIDADE_JPG));
 }
 
 async function gerarCapa(p) {
@@ -702,42 +717,44 @@ function baixar(url, nome) {
 }
 
 async function exportarCard() {
-  aviso('Gerando PNG…');
+  aviso('Gerando JPG…');
   await aguardarTratamentos([cardAtivo()]);
-  baixar(await gerarPng(pub.ativo), nomeArquivo(pub.ativo));
-  aviso('PNG exportado em 1080 × 1440.');
+  const u = URL.createObjectURL(await gerarJpg(pub.ativo));
+  baixar(u, nomeArquivo(pub.ativo));
+  setTimeout(() => URL.revokeObjectURL(u), 4000);
+  aviso('JPG exportado em 1080 × 1440.');
+  salvarNaNuvem({ silencioso: true });
 }
 
 async function exportarTudo() {
   aviso(`Gerando ${pub.cards.length} cards…`);
   await aguardarTratamentos(pub.cards);
   const zip = new window.JSZip();
-  for (let i = 0; i < pub.cards.length; i++) zip.file(nomeArquivo(i), (await gerarPng(i)).split(',')[1], { base64: true });
+  for (let i = 0; i < pub.cards.length; i++) zip.file(nomeArquivo(i), await gerarJpg(i));
   const u = URL.createObjectURL(await zip.generateAsync({ type: 'blob' }));
   baixar(u, `${dataArquivo()}-${nucleo().sigla}-${nomeBase()}.zip`);
   setTimeout(() => URL.revokeObjectURL(u), 4000);
   aviso('Carrossel exportado (.zip).');
+  salvarNaNuvem({ silencioso: true });
 }
 
 // ===========================================================================
 // Navegação
 
 function mostrar(vista) {
-  document.body.classList.toggle('vista-inicio', vista === 'inicio');
-  document.body.classList.toggle('vista-editor', vista === 'editor');
+  for (const v of ['login', 'inicio', 'editor']) document.body.classList.toggle('vista-' + v, vista === v);
 }
 
 async function sairDoEditor() {
   if (!pub) return;
-  const saindo = pub;
   clearTimeout(timerLocal);
-  try { saindo.capa = await gerarCapa(saindo); } catch { /* sem capa */ }
-  await local.gravarPub(saindo);
-  if (nuvem.ativa() && sujoNuvem) { clearTimeout(timerNuvem); await sincronizarPub(); }
+  await local.gravarPub(pub);
+  if (pendente()) await salvarNaNuvem({ silencioso: true });
   pub = null;
 }
 
 async function rotear() {
+  if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
   const m = location.hash.match(/^#\/p\/(.+)$/);
   if (m) {
     if (pub?.id === m[1]) return;
@@ -753,6 +770,29 @@ async function rotear() {
   }
 }
 
+// ---- Entrada ----------------------------------------------------------------
+
+async function entrar(senha) {
+  const c = { url: nuvem.URL_PADRAO, senha };
+  await nuvem.testar(c);
+  nuvem.salvarConfig(c);
+  await enviarTudoParaNuvem().catch(() => {});
+  await rotear();
+}
+
+async function sair() {
+  if (pub) {
+    clearTimeout(timerLocal);
+    await local.gravarPub(pub);
+    pub = null;
+  }
+  nuvem.salvarConfig(null);
+  resumos = [];
+  status('pronto');
+  location.hash = '#/';
+  mostrar('login');
+}
+
 // ===========================================================================
 // Eventos
 
@@ -765,6 +805,11 @@ function ligarEventos() {
     if (!b) return;
     const p = await novaPublicacao(b.dataset.criar);
     await local.gravarPub(p);
+    try {
+      await nuvem.gravar({ ...p, salvoEm: p.atualizado });
+      p.salvoEm = p.atualizado;
+      await local.gravarPub(p);
+    } catch { /* fica como rascunho até o próximo salvamento */ }
     location.hash = `#/p/${p.id}`;
   });
   $('#filtros').addEventListener('click', (e) => {
@@ -781,42 +826,27 @@ function ligarEventos() {
     if (x) excluirPublicacao(x.dataset.del, x);
   });
 
-  // Nuvem
-  const modal = $('#modalNuvem');
-  const abrirNuvem = () => {
-    const c = nuvem.config() || {};
-    $('#nuvemUrl').value = c.url || nuvem.URL_PADRAO;
-    $('#nuvemSenha').value = c.senha || '';
-    $('#nuvemErro').textContent = '';
-    $('#btDesconectar').hidden = !nuvem.ativa();
-    modal.showModal();
-  };
-  $('#btConectar').onclick = abrirNuvem;
-  $('#sinc').onclick = abrirNuvem;
-  $('#btFecharNuvem').onclick = () => modal.close();
-  $('#btDesconectar').onclick = async () => {
-    nuvem.salvarConfig(null);
-    modal.close();
-    status('local');
-    if (!pub) { await carregarArquivo(); renderInicio(); }
-  };
-  $('#formNuvem').addEventListener('submit', async (e) => {
+  // Entrada e saída
+  $('#formLogin').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const c = { url: $('#nuvemUrl').value.trim(), senha: $('#nuvemSenha').value };
-    $('#btSalvarNuvem').disabled = true;
-    $('#nuvemErro').textContent = '';
+    const bt = $('#btEntrar');
+    bt.disabled = true;
+    $('#loginErro').textContent = '';
     try {
-      await nuvem.testar(c);
-      nuvem.salvarConfig(c);
-      modal.close();
-      aviso('Armazenamento conectado.');
-      await enviarTudoParaNuvem();
-      if (pub) { sujoNuvem = true; sincronizarPub(); } else { await carregarArquivo(); renderInicio(); }
+      await entrar($('#loginSenha').value);
+      $('#loginSenha').value = '';
     } catch (err) {
-      $('#nuvemErro').textContent = err.message === 'Failed to fetch' ? 'Não foi possível acessar esse endereço.' : err.message;
+      $('#loginErro').textContent = err.message === 'Failed to fetch' ? 'Sem conexão com o servidor. Tente de novo em instantes.' : err.message;
     } finally {
-      $('#btSalvarNuvem').disabled = false;
+      bt.disabled = false;
     }
+  });
+  $('#btSair').onclick = sair;
+
+  // Salvar
+  $('#btSalvar').onclick = () => salvarNaNuvem();
+  window.addEventListener('keydown', (e) => {
+    if (pub && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); salvarNaNuvem(); }
   });
 
   // Editor: título
@@ -1022,7 +1052,11 @@ function ligarEventos() {
     if (e.key === 'ArrowLeft') irPara(pub.ativo - 1);
     if (e.key === 'ArrowRight') irPara(pub.ativo + 1);
   });
-  window.addEventListener('beforeunload', () => { if (pub) local.gravarPub(pub); });
+  window.addEventListener('beforeunload', (e) => {
+    if (!pub) return;
+    local.gravarPub(pub);
+    if (pendente()) { e.preventDefault(); e.returnValue = ''; }
+  });
   new ResizeObserver(() => { if (pub) renderTrilho(); }).observe($('#trilhoWrap'));
 }
 
@@ -1051,7 +1085,9 @@ async function enviarTudoParaNuvem() {
     if ((r.get(res.id)?.atualizado || '') >= (res.atualizado || '')) continue;
     const p = await local.lerPub(res.id);
     for (const ref of local.refsDe(p)) await garantirImagemNaNuvem(ref);
+    p.salvoEm = p.atualizado;
     await nuvem.gravar(p);
+    await local.gravarPub(p);
   }
 }
 
@@ -1090,7 +1126,8 @@ async function migrar() {
 
 async function iniciar() {
   $('#marcaSelo').innerHTML = mark('mao', 24);
-  status(nuvem.ativa() ? 'nuvem' : 'local');
+  $('#loginSelo').innerHTML = mark('mao', 30);
+  status('pronto');
   await migrar();
   await document.fonts.load('700 112px Inter').catch(() => {});
   await document.fonts.ready;

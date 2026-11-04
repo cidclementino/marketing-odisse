@@ -13,18 +13,17 @@ A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 p
    - **Texto:** clique e escreva. Enter quebra a linha e Ctrl/Cmd + B põe em negrito. O título ajusta o corpo; o texto de apoio vai até 5 linhas e, passando disso, alarga a caixa (meia tela → 3/4 → tela inteira, sempre dentro das margens). Imagens abaixo do texto mantêm distância fixa do fim dele.
    - **Imagem:** clique numa área vazia ou arraste um arquivo sobre ela. Arraste a imagem para reenquadrar.
    - **Cards:** setas, duplicar e excluir ficam sobre o card em destaque; **+** adiciona. Visualização **3** ou **Todos** no canto superior direito.
-5. **Exportar** (canto inferior direito): PNGs em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.png`), um card ou o carrossel em `.zip`.
+5. **Exportar** (canto inferior direito): JPG otimizado em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.jpg`), um card ou o carrossel em `.zip`. Exportar também salva a publicação.
 
-## Armazenamento
+## Entrada e armazenamento
 
-Tudo é salvo primeiro no navegador (IndexedDB). Com o **armazenamento na nuvem** conectado, publicações e imagens também vão para um Cloudflare Worker com KV (`worker/`), na mesma conta do Radar, e aparecem em qualquer computador com a senha.
+O Universo abre numa tela de **senha** (a mesma cadastrada no secret `UNIVERSO_SENHA`). A senha fica lembrada no computador até alguém clicar em **Sair**.
 
-Configuração (uma vez):
+- **Rascunho:** enquanto você trabalha, cada alteração é guardada no navegador (IndexedDB).
+- **Nuvem:** a publicação vai para o Cloudflare (Worker + KV, `worker/`) ao ser criada, no botão **Salvar** (ou Ctrl+S), ao exportar, ao voltar para o arquivo e automaticamente a cada 20 minutos se houver alteração. O indicador ao lado do botão mostra "Alterações não salvas" ou "Salvo às hh:mm".
+- No arquivo, publicações com alterações deste computador que ainda não foram para a nuvem aparecem como **não salvo**.
 
-1. Cloudflare → *Storage & Databases → KV* → criar o namespace `UNIVERSO` e colar o id em `worker/wrangler.toml`.
-2. GitHub → *Settings → Secrets and variables → Actions* → criar `CLOUDFLARE_API_TOKEN` (modelo "Edit Cloudflare Workers"), `CLOUDFLARE_ACCOUNT_ID` e `UNIVERSO_SENHA`.
-3. O workflow `Publicar API` publica o Worker a cada mudança em `worker/` (ou manualmente na aba Actions).
-4. No Universo: *Conectar armazenamento* → endereço do Worker + senha.
+Configuração do Worker (feita uma vez): namespace KV `UNIVERSO` (id em `worker/wrangler.toml`) e os secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` e `UNIVERSO_SENHA` no GitHub. O workflow *Publicar API* publica a cada mudança em `worker/`.
 
 ## Rodar localmente
 

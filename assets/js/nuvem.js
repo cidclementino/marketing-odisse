@@ -2,7 +2,9 @@
 // Endereço e senha ficam no navegador de quem usa (localStorage).
 
 const CHAVE = 'universo-nuvem';
-export const URL_PADRAO = 'https://universo-odisse.reservaprojectbasework.workers.dev';
+export const URL_PADRAO = (() => {
+  try { return localStorage.getItem('universo-api') || 'https://universo-odisse.reservaprojectbasework.workers.dev'; } catch { return 'https://universo-odisse.reservaprojectbasework.workers.dev'; }
+})();
 
 export function config() {
   try {
@@ -17,11 +19,11 @@ export function salvarConfig(c) {
     else localStorage.removeItem(CHAVE);
   } catch { /* navegador sem armazenamento */ }
 }
-export const ativa = () => !!(config()?.url && config()?.senha);
+export const ativa = () => !!config()?.senha;
 
 async function req(caminho, opc = {}) {
-  const c = config();
-  if (!c) throw new Error('nuvem não configurada');
+  const c = { url: URL_PADRAO, ...config() };
+  if (!c.senha) throw new Error('senha incorreta');
   const res = await fetch(c.url.replace(/\/$/, '') + caminho, {
     ...opc,
     headers: { Authorization: `Bearer ${c.senha}`, ...(opc.headers || {}) },

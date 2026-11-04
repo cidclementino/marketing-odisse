@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="assets/css/card.css">
   <link rel="stylesheet" href="assets/css/app.css">
 </head>
-<body class="vista-inicio">
+<body class="vista-login">
   <!-- Menu geral: no futuro, outras páginas entram aqui -->
   <header class="topo">
     <a class="marca" href="#/">
@@ -24,9 +24,21 @@
       <span class="em-breve" title="Em breve">Estratégia</span>
     </nav>
     <div class="topo-acoes">
-      <button class="sinc" id="sinc" title="Armazenamento"><span class="ponto"></span><span id="sincTxt">Neste navegador</span></button>
+      <button class="sair" id="btSair" title="Sair deste computador">Sair</button>
     </div>
   </header>
+
+  <!-- ===================== ENTRADA ===================== -->
+  <main class="login" id="login">
+    <form class="login-caixa" id="formLogin">
+      <span class="login-selo" id="loginSelo"></span>
+      <h1>Universo</h1>
+      <p>Gestão de marketing e produção de mídias do Odisse.</p>
+      <label class="campo"><span>Senha</span><input type="password" id="loginSenha" autocomplete="current-password" required></label>
+      <p class="erro" id="loginErro" role="alert"></p>
+      <button type="submit" id="btEntrar">Entrar</button>
+    </form>
+  </main>
 
   <!-- ===================== INÍCIO: criar + arquivo ===================== -->
   <main class="inicio" id="inicio">
@@ -49,10 +61,6 @@
           <input type="search" id="busca" placeholder="Buscar publicação" aria-label="Buscar publicação">
         </div>
       </div>
-      <div class="aviso-nuvem" id="avisoNuvem" hidden>
-        <span>As publicações estão salvas só neste navegador. Conecte o armazenamento para acessá-las de qualquer computador.</span>
-        <button id="btConectar">Conectar armazenamento</button>
-      </div>
       <div class="lista-pubs" id="listaPubs"></div>
     </section>
   </main>
@@ -65,7 +73,10 @@
       <span class="pub-nucleo" id="pubNucleo"></span>
       <input id="pubTitulo" class="pub-titulo" type="text" placeholder="Título da publicação" aria-label="Título da publicação">
     </div>
-    <span></span>
+    <div class="pub-salvar">
+      <span class="sinc" id="sinc" data-estado="pronto"><span class="ponto"></span><span id="sincTxt"></span></span>
+      <button id="btSalvar" title="Salvar na nuvem (Ctrl+S)">Salvar</button>
+    </div>
   </div>
 
   <main class="editor" id="editor">
@@ -120,23 +131,6 @@
       </div>
     </aside>
   </main>
-
-  <!-- Conexão com o armazenamento -->
-  <dialog class="modal" id="modalNuvem">
-    <form method="dialog" id="formNuvem">
-      <h2>Armazenamento na nuvem</h2>
-      <p>As publicações e imagens ficam guardadas no Cloudflare do Odisse (mesma conta do Radar) e aparecem em qualquer computador com a senha.</p>
-      <label class="campo"><span>Endereço da API</span><input type="url" id="nuvemUrl" required></label>
-      <label class="campo"><span>Senha</span><input type="password" id="nuvemSenha" required autocomplete="current-password"></label>
-      <p class="erro" id="nuvemErro" role="alert"></p>
-      <div class="modal-acoes">
-        <button type="button" class="txt perigo" id="btDesconectar">Desconectar</button>
-        <span></span>
-        <button type="button" class="txt" id="btFecharNuvem">Cancelar</button>
-        <button type="submit" class="txt forte" id="btSalvarNuvem">Conectar</button>
-      </div>
-    </form>
-  </dialog>
 
   <div id="exportador" aria-hidden="true"></div>
   <input type="file" id="arquivo" accept="image/*" hidden>

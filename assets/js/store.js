@@ -58,6 +58,7 @@ export function resumo(pub) {
     ncards: pub.cards?.length || 0,
     criado: pub.criado,
     atualizado: pub.atualizado,
+    salvoEm: pub.salvoEm || '',
     capa: pub.capa || '',
   };
 }

@@ -84,7 +84,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .campo { display: block; margin-bottom: 10px; }
 .campo > span { display: block; font-size: 12px; font-weight: 550; margin-bottom: 4px; }
 .campo > small { display: block; font-size: 11px; color: var(--ardosia-2); margin-top: 3px; }
-.campo input[type=text], .campo input[type=date], .campo textarea {
+.campo input[type=text], .campo input[type=date], .campo input[type=password], .campo textarea {
   width: 100%; padding: 8px 10px; font-size: 13px;
   border: 1px solid var(--linha-2); border-radius: 6px; background: #fff;
 }
@@ -259,20 +259,43 @@ body.arrastando .trilho .slot { outline: 3px dashed rgba(60,130,220,.6); outline
 
 
 /* ---- Vistas ----------------------------------------------------------- */
-body.vista-inicio .pub-barra, body.vista-inicio .editor { display: none; }
+body.vista-inicio .pub-barra, body.vista-inicio .editor, body.vista-inicio .login { display: none; }
 body.vista-editor .inicio { display: none; }
 body.vista-editor { grid-template-rows: var(--topo) 50px 1fr; }
 
-/* ---- Sincronização (topo) ---------------------------------------------- */
-.sinc {
-  display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.18);
-  background: none; color: inherit; border-radius: 99px; padding: 5px 12px; font-size: 12px; opacity: .85;
-}
-.sinc:hover { opacity: 1; border-color: rgba(255,255,255,.4); }
-.sinc .ponto { width: 7px; height: 7px; border-radius: 50%; background: #C9CDD2; }
-.sinc[data-estado="nuvem"] .ponto { background: #7FC29B; }
-.sinc[data-estado="salvando"] .ponto, .sinc[data-estado="enviando"] .ponto { background: var(--ambar, #ECC28F); }
+/* ---- Salvar / estado ---------------------------------------------------- */
+.pub-salvar { justify-self: end; display: flex; align-items: center; gap: 12px; }
+.sinc { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ardosia-2); }
+.sinc .ponto { width: 7px; height: 7px; border-radius: 50%; background: #7FC29B; }
+.sinc[data-estado="pronto"] { display: none; }
+.sinc[data-estado="pendente"] .ponto, .sinc[data-estado="salvando"] .ponto { background: #D9A35F; }
+.sinc[data-estado="erro"] { color: var(--perigo); }
 .sinc[data-estado="erro"] .ponto { background: #E0796B; }
+#btSalvar {
+  border: 1px solid var(--ardosia); background: var(--ardosia); color: var(--papel);
+  border-radius: 6px; padding: 6px 16px; font-size: 12.5px; font-weight: 600;
+}
+#btSalvar:disabled { opacity: .5; cursor: default; }
+.sair { border: 1px solid rgba(255,255,255,.22); background: none; color: inherit; border-radius: 99px; padding: 5px 14px; font-size: 12px; opacity: .85; }
+.sair:hover { opacity: 1; border-color: rgba(255,255,255,.5); }
+.pub-data .rascunho { color: #B26E2A; font-weight: 600; }
+
+/* ---- Entrada ------------------------------------------------------------ */
+body.vista-login .menu, body.vista-login .topo-acoes, body.vista-login .inicio,
+body.vista-login .pub-barra, body.vista-login .editor { display: none; }
+body:not(.vista-login) .login { display: none; }
+.login { display: grid; place-items: center; padding: 24px; }
+.login-caixa {
+  width: min(380px, 100%); background: var(--papel); border-radius: 12px; padding: 34px 30px 30px;
+  box-shadow: 0 1px 2px rgba(63,75,87,.1), 0 18px 48px rgba(63,75,87,.14);
+  display: flex; flex-direction: column;
+}
+.login-selo { width: 52px; height: 52px; border-radius: 12px; background: var(--ardosia); color: var(--papel); display: grid; place-items: center; margin-bottom: 18px; }
+.login-caixa h1 { margin: 0; font-size: 26px; letter-spacing: -.03em; }
+.login-caixa > p { margin: 4px 0 22px; font-size: 13px; color: var(--ardosia-2); }
+.login-caixa .erro { color: var(--perigo); font-size: 12.5px; min-height: 1.2em; margin: 0 0 10px; }
+#btEntrar { border: 0; background: var(--ardosia); color: var(--papel); border-radius: 7px; padding: 10px; font-size: 14px; font-weight: 600; }
+#btEntrar:disabled { opacity: .6; }
 
 /* ---- Início ------------------------------------------------------------ */
 .inicio { overflow-y: auto; padding: 40px clamp(20px, 5vw, 72px) 64px; }
