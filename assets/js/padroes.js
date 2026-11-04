@@ -13,7 +13,7 @@ export const FORMATOS = [
  * ajustam o corpo para caber na área do modelo, começando pelo máximo.
  */
 export const TEXTO = [
-  { id: 'capa', nome: 'Capa', classe: 't-capa', peso: 700, tamanho: [80, 150], entrelinha: 0.94, tracking: -0.04,
+  { id: 'capa', nome: 'Capa', classe: 't-capa', peso: 700, tamanho: [80, 120], entrelinha: 0.94, tracking: -0.04,
     uso: 'Título da capa e nome do projeto.' },
   { id: 'titulo', nome: 'Título', classe: 't-titulo', peso: 700, tamanho: [64, 104], entrelinha: 0.96, tracking: -0.035,
     uso: 'Título dos cards de corpo e dos posts únicos.' },
@@ -48,6 +48,7 @@ export const ESPACO = [
   { id: 'cabecalho', nome: 'Cabeçalho', grupo: 'posicao', v: 38, uso: 'Do topo do card ao cabeçalho (estilo Rótulo).' },
   { id: 'topo', nome: 'Início do conteúdo', grupo: 'posicao', v: 128, uso: 'Do topo do card ao primeiro texto, quando não há imagem no alto.' },
   { id: 'selo', nome: 'Selo do rodapé', grupo: 'posicao', v: 66, uso: 'Da base do card ao centro do selo.' },
+  { id: 'ponto', nome: 'Pontos laterais', grupo: 'posicao', v: 10, uso: 'Diâmetro dos 6 pontos, centrados na margem (26 px da borda), na altura do cabeçalho, do meio do card e do selo.' },
 ];
 
 export const GRUPOS_ESPACO = [

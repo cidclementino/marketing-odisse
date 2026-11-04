@@ -1114,7 +1114,44 @@ export function modeloDe(nucleoId, id) {
 export function renderCard(opc) {
   const modelo = modeloDe(opc.nucleo.id, opc.card.modelo);
   const t = criarContexto({ ...opc, modelo });
-  return modelo.render(t);
+  return modelo.render(t) + pontos();
+}
+
+/**
+ * Seis pontos: três de cada lado, centrados na margem, alinhados ao centro do cabeçalho,
+ * ao meio do card e ao centro do selo. A cor é definida em colorirPontos (ajustarLayout).
+ */
+function pontos() {
+  const d = E.ponto;
+  const ys = [E.cabecalho + 12, ALT / 2, ALT - E.selo]; // 12 = metade da linha do Rótulo (20 × 1,2)
+  const xs = [M / 2, LARG - M / 2];
+  return xs.flatMap((x) => ys.map((y) => `<div class="ponto" style="${pos(x - d / 2, y - d / 2, d, d)}"></div>`)).join('');
+}
+
+/** Cor que contrasta com o que está sob o ponto: imagem ou fundo escuro → branco; claro → ardósia. */
+function corSob(card, x, y) {
+  const els = [...card.children].reverse();
+  for (const el of els) {
+    if (!el.classList.contains('bloco') && !el.classList.contains('slot')) continue;
+    const l = el.offsetLeft, t = el.offsetTop;
+    if (x < l || x > l + el.offsetWidth || y < t || y > t + el.offsetHeight) continue;
+    const bg = getComputedStyle(el).backgroundColor.match(/[\d.]+/g)?.map(Number);
+    const transparente = !bg || (bg.length > 3 && bg[3] === 0);
+    const lum = transparente ? null : (0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2]) / 255;
+    if (el.classList.contains('slot') && !el.dataset.vazio) {
+      // imagem: branco, salvo foto de estúdio sobre fundo muito claro (Objetos)
+      return lum !== null && lum > 0.85 ? A : B;
+    }
+    if (transparente) continue; // véu (gradiente) ou transparente
+    return lum < 0.5 ? B : A;
+  }
+  return A;
+}
+
+export function colorirPontos(card) {
+  card.querySelectorAll(':scope > .ponto').forEach((p) => {
+    p.style.background = corSob(card, p.offsetLeft + p.offsetWidth / 2, p.offsetTop + p.offsetHeight / 2);
+  });
 }
 
 export function exemploDe(nucleoId, modeloId) {
@@ -1150,6 +1187,8 @@ export function ajustarLayout(raiz) {
   raiz.querySelectorAll('[data-fit]').forEach(ajustar);
   raiz.querySelectorAll('[data-cresce]').forEach(crescer);
   raiz.querySelectorAll('[data-segue]').forEach((el) => seguir(el, raiz));
+  const cards = raiz.classList?.contains('card') ? [raiz] : raiz.querySelectorAll('.card');
+  cards.forEach(colorirPontos);
 }
 
 export function crescer(el) {

@@ -59,6 +59,9 @@
   z-index: 3;
 }
 
+/* Pontos laterais — 3 de cada lado (cor calculada em colorirPontos) */
+.card .ponto { position: absolute; border-radius: 50%; z-index: 4; pointer-events: none; background: #3F4B57; }
+
 /* Selo — rodapé central, faixa y 1340–1408 */
 .card .selo { left: 0; right: 0; display: flex; justify-content: center; z-index: 3; }
 .card .mark { display: block; }
