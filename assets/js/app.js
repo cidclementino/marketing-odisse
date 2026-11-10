@@ -763,7 +763,9 @@ async function sairDoEditor() {
 async function rotear() {
   if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
   const m = location.hash.match(/^#\/p\/(.+)$/);
-  const metr = location.hash === '#/metricas';
+  // o retorno do login do Meta às vezes chega com o fragmento "#_=_"; volta para as métricas
+  if (location.hash === '#_=_') { history.replaceState(null, '', location.pathname + '#/metricas'); }
+  const metr = location.hash.startsWith('#/metricas');
   $('#menuPosts').classList.toggle('ativo', !metr);
   $('#menuMetricas').classList.toggle('ativo', metr);
   if (metr) {
