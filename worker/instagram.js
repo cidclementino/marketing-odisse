@@ -37,10 +37,12 @@ class ErroIG extends Error {
   constructor(msg, codigo) { super(msg); this.codigo = codigo; }
 }
 
-function cliente(token, base = API_IG) {
-  let chamadas = 0;
+/** Cota de chamadas externas compartilhada por toda a execução (perfil, posts, concorrentes…). */
+export const novaCota = () => ({ usadas: 0 });
+
+export function cliente(token, base = API_IG, cota = novaCota()) {
   async function get(caminho, params = {}) {
-    if (++chamadas > LIMITE_CHAMADAS) throw new ErroIG('limite de chamadas desta execução', 'limite');
+    if (++cota.usadas > LIMITE_CHAMADAS) throw new ErroIG('limite de chamadas desta execução', 'limite');
     const url = caminho.startsWith('http') ? new URL(caminho) : new URL(base + caminho);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     if (token && !url.searchParams.has('access_token')) url.searchParams.set('access_token', token);
@@ -52,7 +54,7 @@ function cliente(token, base = API_IG) {
     }
     return corpo;
   }
-  return { get, restantes: () => LIMITE_CHAMADAS - chamadas };
+  return { get, restantes: () => LIMITE_CHAMADAS - cota.usadas, cota };
 }
 
 const valorDe = (item) => item?.total_value?.value ?? item?.values?.[0]?.value ?? null;
@@ -61,9 +63,9 @@ const valorDe = (item) => item?.total_value?.value ?? item?.values?.[0]?.value ?
 // Conexão
 
 /** Cliente e caminho da conta conforme o tipo de token. */
-const acesso = (tk) => (tk.modo === 'unificado'
-  ? { ig: cliente(tk.token, API_FB), raiz: `/${tk.igId}` }
-  : { ig: cliente(tk.token, API_IG), raiz: '/me' });
+export const acesso = (tk, cota) => (tk.modo === 'unificado'
+  ? { ig: cliente(tk.token, API_FB, cota), raiz: `/${tk.igId}` }
+  : { ig: cliente(tk.token, API_IG, cota), raiz: '/me' });
 
 /** Conecta com um token colado (IGAA… do login do Instagram ou EAA… de usuário do sistema). */
 export async function conectar(env, token, igId) {
@@ -218,12 +220,13 @@ export async function coletar(env, { inicial = false } = {}) {
   const agora = Date.now();
   const hoje = diaLocal(agora);
   const avisos = [];
+  const cota = novaCota();
 
   try {
     // 1. renova o token uma vez por semana (vale 60 dias; precisa ter mais de 24 h)
     if (tk.modo !== 'unificado' && agora - tk.renovado > 7 * DIA_MS) {
       try {
-        const r = await cliente(tk.token).get('https://graph.instagram.com/refresh_access_token', { grant_type: 'ig_refresh_token' });
+        const r = await cliente(tk.token, API_IG, cota).get('https://graph.instagram.com/refresh_access_token', { grant_type: 'ig_refresh_token' });
         if (r.access_token) {
           Object.assign(tk, { token: r.access_token, renovado: agora, expira: agora + (r.expires_in || 60 * 86400) * 1000 });
           await kv.put('ig:token', JSON.stringify(tk));
@@ -233,7 +236,7 @@ export async function coletar(env, { inicial = false } = {}) {
         avisos.push('renovação do token: ' + e.message);
       }
     }
-    const { ig, raiz } = acesso(tk);
+    const { ig, raiz } = acesso(tk, cota);
 
     // 2. perfil
     const perfil = await ig.get(raiz, { fields: 'username,name,profile_picture_url,followers_count,follows_count,media_count' });
@@ -248,11 +251,12 @@ export async function coletar(env, { inicial = false } = {}) {
     if (inicial) await historicoInicial(ig, raiz, dias, agora).catch((e) => avisos.push('histórico: ' + e.message));
     for (let i = 7; i >= 1; i--) {
       const d = diaLocal(agora - i * DIA_MS);
-      if (dias[d]?.completo) continue;
-      if (ig.restantes() < 20) break;
+      if (dias[d]?.completo && dias[d]?.v >= 2) continue;
+      if (ig.restantes() < 24) break;
       try {
+        const base = dias[d]?.completo ? {} : await metricasDoDia(ig, raiz, d);
         // os números de ontem ainda mudam; só os de anteontem para trás ficam fechados
-        Object.assign((dias[d] = dias[d] || {}), await metricasDoDia(ig, raiz, d), { completo: i >= 2 });
+        Object.assign((dias[d] = dias[d] || {}), base, await extrasDoDia(ig, raiz, d), { completo: i >= 2, v: 2 });
       } catch (e) {
         if (e.codigo === 'token') throw e;
         avisos.push(`conta ${d}: ${e.message}`);
@@ -272,10 +276,29 @@ export async function coletar(env, { inicial = false } = {}) {
       posts[p.id] = { ...ant, ...p, m, hist, atualizado: agora };
     }
 
-    // 5. miniaturas (os links do Instagram expiram; guardamos uma cópia)
-    const semMini = lista.filter((p) => !posts[p.id].mini && p.imagem).slice(0, Math.min(MINIS_POR_COLETA, ig.restantes() - 2));
+    // 5. concorrentes (uma chamada por conta; só no login unificado)
+    if (tk.modo === 'unificado') {
+      try {
+        const { coletarConcorrentes } = await import('./concorrentes.js');
+        await coletarConcorrentes(env, ig, tk.igId, avisos);
+      } catch (e) { if (e.codigo === 'token') throw e; avisos.push('concorrentes: ' + e.message); }
+    }
+
+    // 6. seguidores online por hora, público e stories
+    await coletarOnline(kv, ig, raiz, agora).catch((e) => { if (e.codigo === 'token') throw e; avisos.push('horários: ' + e.message); });
+    await coletarPublico(kv, ig, raiz, agora, est).catch((e) => { if (e.codigo === 'token') throw e; avisos.push('público: ' + e.message); });
+    await coletarStories(kv, ig, raiz, agora).catch((e) => { if (e.codigo === 'token') throw e; avisos.push('stories: ' + e.message); });
+
+    // 7. métricas extras por post (seguidores ganhos, visitas ao perfil, retenção de reels)
+    const novosSemMini = lista.filter((p) => !posts[p.id].mini && p.imagem).length;
+    await extrasDePosts(ig, posts, agora, est, Math.min(MINIS_POR_COLETA, novosSemMini) + 1)
+      .catch((e) => { if (e.codigo === 'token') throw e; avisos.push('extras dos posts: ' + e.message); });
+
+    // 8. miniaturas (os links do Instagram expiram; guardamos uma cópia)
+    const semMini = lista.filter((p) => !posts[p.id].mini && p.imagem).slice(0, Math.max(0, Math.min(MINIS_POR_COLETA, ig.restantes() - 1)));
     for (const p of semMini) {
       try {
+        cota.usadas++;
         const r = await fetch(p.imagem);
         if (!r.ok) continue;
         const tipo = r.headers.get('content-type') || 'image/jpeg';
@@ -286,10 +309,10 @@ export async function coletar(env, { inicial = false } = {}) {
     for (const p of Object.values(posts)) delete p.imagem;
     await kv.put('ig:posts', JSON.stringify(posts));
 
-    // 6. vínculo automático com as publicações do Universo (mesma data de publicação)
+    // 9. vínculo automático com as publicações do Universo (mesma data de publicação)
     await vincularAutomatico(kv, posts, agora).catch((e) => avisos.push('vínculo: ' + e.message));
 
-    Object.assign(est, { ultimaColeta: agora, erro: '', avisos });
+    Object.assign(est, { ultimaColeta: agora, erro: '', avisos, chamadas: cota.usadas });
     await kv.put('ig:estado', JSON.stringify(est));
     return { ok: true, avisos };
   } catch (e) {
@@ -299,6 +322,202 @@ export async function coletar(env, { inicial = false } = {}) {
     Object.assign(est, { erro: msg, ultimaTentativa: agora, avisos });
     await kv.put('ig:estado', JSON.stringify(est));
     return { ok: false, erro: msg };
+  }
+}
+
+const fatal = (e) => e.codigo === 'token' || e.codigo === 'limite';
+const resultados = (item) => item?.total_value?.breakdowns?.[0]?.results || [];
+
+/** Alcance de seguidores × não seguidores, quem seguiu/deixou de seguir e visitas ao perfil. */
+async function extrasDoDia(ig, raiz, dia) {
+  const params = { period: 'day', metric_type: 'total_value', since: inicioDia(dia), until: inicioDia(dia) + 86400 };
+  const out = {};
+  const ler = (r) => {
+    for (const it of r.data || []) {
+      for (const x of resultados(it)) {
+        const tipo = x.dimension_values?.[0];
+        if (it.name === 'reach') { if (tipo === 'FOLLOWER') out.alcSeg = x.value; if (tipo === 'NON_FOLLOWER') out.alcNao = x.value; }
+        if (it.name === 'follows_and_unfollows') { if (tipo === 'FOLLOWER') out.seguiram = x.value; if (tipo === 'NON_FOLLOWER') out.deixaram = x.value; }
+      }
+      if (it.name === 'profile_views') out.visitas = valorDe(it);
+    }
+  };
+  try {
+    ler(await ig.get(`${raiz}/insights`, { ...params, metric: 'reach,follows_and_unfollows', breakdown: 'follow_type' }));
+  } catch (e) {
+    if (fatal(e)) throw e;
+    for (const met of ['reach', 'follows_and_unfollows']) {
+      try { ler(await ig.get(`${raiz}/insights`, { ...params, metric: met, breakdown: 'follow_type' })); } catch (e2) { if (fatal(e2)) throw e2; }
+    }
+  }
+  // sem quebra, quem seguiu vem zerado nas contas pequenas: registra 0 em vez de "sem dado"
+  if (out.seguiram === undefined && out.deixaram !== undefined) out.seguiram = 0;
+  if (out.deixaram === undefined && out.seguiram !== undefined) out.deixaram = 0;
+  try { ler(await ig.get(`${raiz}/insights`, { ...params, metric: 'profile_views' })); } catch (e) { if (fatal(e)) throw e; }
+  return out;
+}
+
+/**
+ * Seguidores online por hora. O Instagram entrega cada dia no horário do Pacífico;
+ * aqui tudo vira hora de Brasília: ig:online -> { 'AAAA-MM-DD': { '0'..'23': n } }.
+ */
+async function coletarOnline(kv, ig, raiz, agora) {
+  const online = (await kv.get('ig:online', 'json')) || {};
+  const ultimo = Object.keys(online).sort().at(-1);
+  if (ultimo && ultimo >= diaLocal(agora - 2 * DIA_MS) && online._buscado === diaLocal(agora)) return;
+  if (ig.restantes() < 8) return;
+  const desde = ultimo ? Math.max(Date.parse(ultimo) - 2 * DIA_MS, agora - 29 * DIA_MS) : agora - 29 * DIA_MS;
+  const r = await ig.get(`${raiz}/insights`, {
+    metric: 'online_followers', period: 'lifetime',
+    since: Math.floor(desde / 1000), until: Math.floor(agora / 1000),
+  });
+  for (const v of r.data?.[0]?.values || []) {
+    if (!v.value || typeof v.value !== 'object' || !Object.keys(v.value).length) continue;
+    const inicioPT = Date.parse(v.end_time) - DIA_MS; // meia-noite do dia no Pacífico, em UTC
+    for (const [h, n] of Object.entries(v.value)) {
+      const t = inicioPT + Number(h) * 3600000 + FUSO_MS; // mesmo instante, em hora de Brasília
+      const iso = new Date(t).toISOString();
+      const d = iso.slice(0, 10);
+      (online[d] = online[d] || {})[String(Number(iso.slice(11, 13)))] = n;
+    }
+  }
+  online._buscado = diaLocal(agora);
+  const corte = diaLocal(agora - 180 * DIA_MS);
+  for (const d of Object.keys(online)) if (d !== '_buscado' && d < corte) delete online[d];
+  await kv.put('ig:online', JSON.stringify(online));
+}
+
+const DEMOS = [['follower_demographics', 'seguidores'], ['reached_audience_demographics', 'alcancados'], ['engaged_audience_demographics', 'engajados']];
+const QUEBRAS = [['age', 'idade'], ['gender', 'genero'], ['city', 'cidade'], ['country', 'pais']];
+const POR_COLETA_PUBLICO = 6;
+
+/** Público por idade, gênero, cidade e país — atualizado uma vez por semana, aos poucos. */
+async function coletarPublico(kv, ig, raiz, agora, est) {
+  const pub = (await kv.get('ig:publico', 'json')) || {};
+  const fila = [];
+  for (const [met, grupo] of DEMOS) for (const [qb, campo] of QUEBRAS) {
+    const em = pub[grupo]?.em?.[campo] || 0;
+    if (agora - em > 6.5 * DIA_MS) fila.push({ met, grupo, qb, campo, em });
+  }
+  fila.sort((a, b) => a.em - b.em);
+  let feitas = 0;
+  let mudouSeg = false;
+  for (const it of fila) {
+    if (feitas >= POR_COLETA_PUBLICO || ig.restantes() < 10) break;
+    feitas++;
+    const g = (pub[it.grupo] = pub[it.grupo] || { em: {} });
+    g.em = g.em || {};
+    let r = null;
+    for (const tf of ['this_month', 'this_week', null]) {
+      const params = { metric: it.met, period: 'lifetime', metric_type: 'total_value', breakdown: it.qb };
+      if (tf) params.timeframe = tf;
+      try { r = await ig.get(`${raiz}/insights`, params); g.janela = tf; break; } catch (e) {
+        if (fatal(e)) throw e;
+        g.erro = e.message;
+        if (/100 followers|fewer than|menos de 100/i.test(e.message)) break;
+      }
+    }
+    g.em[it.campo] = agora;
+    if (!r) continue;
+    const valores = {};
+    for (const x of resultados(r.data?.[0])) valores[x.dimension_values?.[0]] = x.value;
+    g[it.campo] = valores;
+    delete g.erro;
+    if (it.grupo === 'seguidores') mudouSeg = true;
+  }
+  if (!feitas) return;
+  await kv.put('ig:publico', JSON.stringify(pub));
+  // histórico semanal do perfil dos seguidores (idade, gênero e as 10 maiores cidades)
+  if (mudouSeg && pub.seguidores?.idade) {
+    const hist = (await kv.get('ig:publico-hist', 'json')) || {};
+    const top = Object.entries(pub.seguidores.cidade || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    hist[diaLocal(agora)] = { idade: pub.seguidores.idade, genero: pub.seguidores.genero || {}, cidade: Object.fromEntries(top), total: est.seguidores ?? null };
+    const dias = Object.keys(hist).sort();
+    for (const d of dias.slice(0, Math.max(0, dias.length - 104))) delete hist[d];
+    await kv.put('ig:publico-hist', JSON.stringify(hist));
+  }
+}
+
+const METRICAS_STORY = ['reach', 'views', 'replies', 'shares', 'total_interactions', 'follows', 'profile_visits'];
+const NOME_STORY = { reach: 'alcance', views: 'views', replies: 'respostas', shares: 'compart', total_interactions: 'interacoes', follows: 'seguiu', profile_visits: 'visitas' };
+
+/** Stories só existem por 24 h: cada coleta guarda os que estiverem no ar. */
+async function coletarStories(kv, ig, raiz, agora) {
+  if (ig.restantes() < 6) return;
+  const base = 'id,media_type,timestamp,permalink';
+  let r;
+  try {
+    r = await ig.get(`${raiz}/stories`, { fields: `${base},insights.metric(${METRICAS_STORY.join(',')})` });
+  } catch (e) {
+    if (fatal(e)) throw e;
+    r = await ig.get(`${raiz}/stories`, { fields: `${base},insights.metric(reach,replies)` });
+  }
+  if (!r.data?.length) return;
+  const st = (await kv.get('ig:stories', 'json')) || {};
+  for (const it of r.data) {
+    const m = { ...(st[it.id]?.m || {}) };
+    for (const ins of it.insights?.data || []) m[NOME_STORY[ins.name]] = valorDe(ins);
+    st[it.id] = {
+      id: it.id, tipo: it.media_type, link: it.permalink, data: it.timestamp, dia: diaLocal(Date.parse(it.timestamp)),
+      m, idadeH: Math.round((agora - Date.parse(it.timestamp)) / 3600000),
+    };
+  }
+  const ids = Object.keys(st).sort((a, b) => st[b].data.localeCompare(st[a].data));
+  for (const id of ids.slice(400)) delete st[id];
+  await kv.put('ig:stories', JSON.stringify(st));
+}
+
+/**
+ * Métricas que não vêm na listagem: seguidores ganhos e visitas ao perfil (posts do feed)
+ * e tempo médio assistido (reels). Prioriza posts recentes e os que nunca foram buscados.
+ * O que cada tipo aceita fica em est.suporte para não repetir chamadas que falham.
+ */
+const EXTRAS = { FEED: ['follows', 'profile_visits'], REELS: ['ig_reels_avg_watch_time', 'follows', 'profile_visits'] };
+const NOME_EXTRA = { follows: 'seguiu', profile_visits: 'visitas', ig_reels_avg_watch_time: 'retencao' };
+
+async function extrasDePosts(ig, posts, agora, est, reserva) {
+  est.suporte = est.suporte || {};
+  const fila = Object.values(posts)
+    .filter((p) => EXTRAS[p.produto === 'REELS' ? 'REELS' : 'FEED'])
+    .map((p) => {
+      const recente = agora - Date.parse(p.data) < 30 * DIA_MS;
+      const prazo = recente ? DIA_MS * 0.9 : 30 * DIA_MS;
+      return { p, recente, vencido: !p.x || agora - p.x > prazo };
+    })
+    .filter((x) => x.vencido)
+    .sort((a, b) => (b.recente - a.recente) || ((a.p.x || 0) - (b.p.x || 0)) || b.p.data.localeCompare(a.p.data));
+  for (const { p } of fila) {
+    if (ig.restantes() <= reserva + 1) break;
+    const tipo = p.produto === 'REELS' ? 'REELS' : 'FEED';
+    let mets = est.suporte[tipo] || EXTRAS[tipo];
+    if (!mets.length) { p.x = agora; continue; }
+    try {
+      const r = await ig.get(`/${p.id}/insights`, { metric: mets.join(',') });
+      for (const ins of r.data || []) {
+        let v = valorDe(ins);
+        if (ins.name === 'ig_reels_avg_watch_time' && v != null) v = Math.round(v / 100) / 10; // ms -> s
+        p.m[NOME_EXTRA[ins.name]] = v;
+      }
+      p.x = agora;
+      if (!est.suporte[tipo]) est.suporte[tipo] = mets;
+    } catch (e) {
+      if (fatal(e)) throw e;
+      if (est.suporte[tipo]) { p.x = agora; continue; } // já sabíamos o que funciona: este post não tem os dados
+      // descobre, métrica a métrica, o que este tipo de post aceita
+      const ok = [];
+      for (const met of mets) {
+        if (ig.restantes() <= reserva + 1) break;
+        try {
+          const r = await ig.get(`/${p.id}/insights`, { metric: met });
+          let v = valorDe(r.data?.[0]);
+          if (met === 'ig_reels_avg_watch_time' && v != null) v = Math.round(v / 100) / 10;
+          p.m[NOME_EXTRA[met]] = v;
+          ok.push(met);
+        } catch (e2) { if (fatal(e2)) throw e2; }
+      }
+      if (ok.length) est.suporte[tipo] = ok;
+      p.x = agora;
+    }
   }
 }
 
@@ -415,10 +634,13 @@ async function vincularAutomatico(kv, posts, agora) {
 
 export async function metricas(env) {
   const kv = env.UNIVERSO;
-  const [est, tk, dias, posts, vinc] = await Promise.all([
+  const [est, tk, dias, posts, vinc, publico, publicoHist, online, stories, etiquetas] = await Promise.all([
     kv.get('ig:estado', 'json'), kv.get('ig:token', 'json'), kv.get('ig:dias', 'json'),
-    kv.get('ig:posts', 'json'), kv.get('ig:vinculos', 'json'),
+    kv.get('ig:posts', 'json'), kv.get('ig:vinculos', 'json'), kv.get('ig:publico', 'json'),
+    kv.get('ig:publico-hist', 'json'), kv.get('ig:online', 'json'), kv.get('ig:stories', 'json'),
+    kv.get('met:etiquetas', 'json'),
   ]);
+  const { listaConcorrentes } = await import('./concorrentes.js');
   const pubs = {};
   await Promise.all([...new Set(Object.values(vinc || {}).map((v) => v.pub))].map(async (id) => {
     const p = await kv.get(`pub:${id}`, 'json');
@@ -430,7 +652,23 @@ export async function metricas(env) {
     posts: Object.values(posts || {}).sort((a, b) => b.data.localeCompare(a.data)),
     vinculos: vinc || {},
     pubs,
+    publico: publico || {},
+    publicoHist: publicoHist || {},
+    online: online || {},
+    stories: Object.values(stories || {}).sort((a, b) => b.data.localeCompare(a.data)),
+    etiquetas: etiquetas || {},
+    concorrentes: await listaConcorrentes(env),
   };
+}
+
+/** Tema e objetivo de um post (chave = rede:id, ex. ig:1789…). Vazio apaga. */
+export async function etiquetar(env, chave, { tema, objetivo } = {}) {
+  const et = (await env.UNIVERSO.get('met:etiquetas', 'json')) || {};
+  const limpo = (v) => String(v || '').trim().slice(0, 40);
+  const novo = { tema: limpo(tema), objetivo: limpo(objetivo) };
+  if (!novo.tema && !novo.objetivo) delete et[chave]; else et[chave] = novo;
+  await env.UNIVERSO.put('met:etiquetas', JSON.stringify(et));
+  return et[chave] || null;
 }
 
 export async function vincular(env, mediaId, pubId) {

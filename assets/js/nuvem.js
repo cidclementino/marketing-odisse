@@ -96,3 +96,9 @@ export async function igMiniatura(mediaId) {
   const blob = await (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
   return URL.createObjectURL(blob);
 }
+
+// ---- Métricas: etiquetas e concorrentes ------------------------------------
+export const etiquetar = (chave, dados) => reqIG(`/api/metricas/etiquetas/${encodeURIComponent(chave)}`, 'PUT', dados);
+export const concAdicionar = (usuario) => reqIG('/api/concorrentes', 'POST', { usuario });
+export const concRemover = (usuario) => reqIG(`/api/concorrentes/${encodeURIComponent(usuario)}`, 'DELETE');
+export const concAtualizar = (usuario) => reqIG(`/api/concorrentes/${encodeURIComponent(usuario)}`, 'POST');

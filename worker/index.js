@@ -26,10 +26,18 @@
 //   GET    /api/instagram/metricas          -> tudo para a página de métricas
 //   PUT    /api/instagram/vinculos/:media   -> { pub } liga o post a uma publicação (null = sem)
 //   GET    /api/instagram/miniaturas/:media -> miniatura guardada do post
+//   PUT    /api/metricas/etiquetas/:chave   -> { tema, objetivo } de um post (chave = rede:id)
+//
+//   Concorrentes (ver concorrentes.js):
+//   GET    /api/concorrentes                -> { max, contas }
+//   POST   /api/concorrentes                -> { usuario } adiciona (até o limite) e já coleta
+//   POST   /api/concorrentes/:usuario       -> atualiza a conta agora
+//   DELETE /api/concorrentes/:usuario       -> remove a conta e seus dados
 //
 // Cron diário (wrangler.toml) -> coleta do Instagram.
 
 import * as ig from './instagram.js';
+import * as conc from './concorrentes.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +105,14 @@ export default {
     if (!autorizado(request, env)) return erro('não autorizado', 401);
     const kv = env.UNIVERSO;
     if (partes[1] === 'instagram') return instagram(request, env, partes.slice(2));
+    if (partes[1] === 'concorrentes') return concorrentes(request, env, partes[2]);
+    if (partes[1] === 'metricas' && partes[2] === 'etiquetas' && partes[3] && request.method === 'PUT') {
+      const chave = decodeURIComponent(partes[3]);
+      if (!/^[a-z]{2}:[\w-]{3,64}$/.test(chave)) return erro('chave inválida', 400);
+      let corpo;
+      try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+      return json(await ig.etiquetar(env, chave, corpo || {}));
+    }
     const [, recurso, id] = partes;
     if (id && !ID.test(id)) return erro('id inválido', 400);
 
@@ -193,6 +209,23 @@ async function instagram(request, env, [acao, id]) {
     }
   } catch (e) {
     return erro(e.message || 'erro no Instagram', ['token', 'conta', 'app'].includes(e.codigo) ? 400 : 502);
+  }
+  return erro('rota não encontrada', 404);
+}
+
+async function concorrentes(request, env, usuario) {
+  const m = request.method;
+  try {
+    if (!usuario && m === 'GET') return json(await conc.listaConcorrentes(env));
+    if (!usuario && m === 'POST') {
+      let corpo;
+      try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+      return json(await conc.adicionar(env, corpo?.usuario));
+    }
+    if (usuario && m === 'DELETE') return json(await conc.remover(env, decodeURIComponent(usuario)));
+    if (usuario && m === 'POST') return json(await conc.atualizar(env, decodeURIComponent(usuario)));
+  } catch (e) {
+    return erro(e.message || 'erro nos concorrentes', ['token', 'conta'].includes(e.codigo) ? 400 : 502);
   }
   return erro('rota não encontrada', 404);
 }

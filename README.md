@@ -24,6 +24,17 @@ Hub de desempenho do marketing do Odisse. **Fase 1: Instagram** (conta única @o
 - **Coleta:** todo dia às 06:17 (cron do Worker) e no botão *Atualizar agora*. Guarda os números diários da conta (visualizações, alcance, contas engajadas, interações, seguidores) e as métricas de cada post, com histórico diário nos primeiros 90 dias — o Instagram apaga os dados da conta depois de 90 dias, o Universo não.
 - **Vínculo com o Universo:** cada post do Instagram pode ser ligado à publicação que o gerou. Se só houver uma publicação com a mesma *data de publicação*, a ligação é automática. Com isso as métricas se abrem **por núcleo** e **por modelo de capa** (códigos OE-01, OA-03…).
 - Miniaturas dos posts ficam guardadas no KV (`igmini:`), porque os links do Instagram expiram.
+- **Subpáginas** (`#/metricas/<seção>`), organizadas por pergunta; a rede é um filtro comum a todas:
+  - *Visão geral* — leituras automáticas do período, comparação entre redes (só métricas equivalentes, relativas ao alcance) e melhores posts;
+  - *Conteúdo* — o que funciona, agrupando por núcleo, formato, tema, objetivo, modelo de capa, dia ou horário; tabela de posts com tema e objetivo editáveis (`met:etiquetas`);
+  - *Público* — idade, gênero, cidades e países de seguidores, alcançados e engajados (`ig:publico`, histórico semanal em `ig:publico-hist`);
+  - *Horários* — mapa de seguidores online por dia e hora, em Brasília (`ig:online`), e alcance dos posts por dia/faixa;
+  - *Crescimento* — funil alcance → visitas ao perfil → seguidores → toques; alcance de seguidores × não seguidores; posts que trouxeram seguidores;
+  - *Concorrentes* — contas profissionais adicionadas pelo @ (limite em `MAX_CONCORRENTES`, `worker/concorrentes.js`), só com dados públicos (Business Discovery): seguidores, frequência, formatos, engajamento público e posts fora da curva;
+  - *Instagram* — o que é só desta rede: conta por dia, retenção de reels, stories (capturados enquanto estão no ar);
+  - *Conexões* — estado da coleta e das redes.
+- **Formato comum entre redes:** `assets/js/metricas/modelo.js` converte os posts de cada rede para o mesmo formato; ligar TikTok ou YouTube é escrever outro adaptador ali e a coleta no Worker.
+- **Cota:** cada coleta faz no máximo 42 consultas (plano gratuito do Worker); perfil e posts têm prioridade, depois concorrentes, horários, público (até 6 consultas, renovado por semana), stories e métricas extras por post.
 
 ## Entrada e armazenamento
 
@@ -61,7 +72,9 @@ assets/js/imaging.js     leitura de imagem e duotone com grão
 assets/js/app.js         início, arquivo, edição, carrossel e exportação
 assets/js/store.js       armazenamento local (IndexedDB)
 assets/js/nuvem.js       cliente da API
-assets/js/pagina-metricas.js  página de métricas (Instagram)
+assets/js/pagina-metricas.js  página de métricas: navegação, filtros e eventos
+assets/js/metricas/          modelo.js (formato comum), leituras.js, graficos.js, paginas.js
+worker/concorrentes.js        concorrentes (Business Discovery)
 worker/                  API Cloudflare Worker + KV (index.js; instagram.js = coleta e métricas)
 assets/fonts/            Inter variável (com eixo óptico, para Inter Display)
 vendor/                  html-to-image e JSZip

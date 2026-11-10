@@ -1,53 +1,59 @@
 // Página "Métricas": hub de desempenho do marketing do Odisse.
-// Fase 1: Instagram (conta única, coletada todo dia pelo Worker — ver worker/instagram.js).
-// Cada post do Instagram pode ser ligado a uma publicação do Universo; assim as métricas
-// se abrem por núcleo e por modelo de capa.
+// Reúne as redes (fase 1: Instagram; TikTok e YouTube depois) em subpáginas organizadas por
+// pergunta — o que aconteceu, o que funciona, quem é o público, quando publicar, o que traz
+// seguidores, como estão os concorrentes. A rede é um filtro que vale para todas.
+//
+// Dados: worker/instagram.js e worker/concorrentes.js. Formato comum: metricas/modelo.js.
 
 import * as nuvem from './nuvem.js';
 import { NUCLEOS, ORDEM_NUCLEOS } from './nucleos.js';
-import { modelosDo } from './templates.js';
+import { REDES, normalizar, recortar } from './metricas/modelo.js';
+import { esc, n, ligarDicas } from './metricas/graficos.js';
+import { gerarLeituras } from './metricas/leituras.js';
+import * as P from './metricas/paginas.js';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const NF = new Intl.NumberFormat('pt-BR');
-const NFc = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
-const n = (v) => (v == null || Number.isNaN(v) ? '—' : NF.format(Math.round(v)));
-const nc = (v) => (v == null || Number.isNaN(v) ? '—' : Math.abs(v) < 10000 ? NF.format(Math.round(v)) : NFc.format(v));
-const pct = (v) => (v == null || !Number.isFinite(v) ? '—' : (v * 100).toFixed(1).replace('.', ',') + '%');
-const DIA = 86400000;
-const diaLocal = (ms) => new Date(ms - 3 * 3600000).toISOString().slice(0, 10);
-const dataCurta = (d, ano = true) => { const [a, m, dd] = d.split('-'); return `${dd}/${m}${ano ? '/' + a.slice(2) : ''}`; };
-const media = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
-const soma = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) : null);
-
-const PERIODOS = [['7', '7 dias'], ['30', '30 dias'], ['90', '90 dias'], ['tudo', 'Tudo']];
-const SERIES = [
-  ['views', 'Visualizações'],
-  ['alcance', 'Alcance'],
-  ['interacoes', 'Interações'],
-  ['contas', 'Contas engajadas'],
+const SUBS = [
+  ['visao', 'Visão geral', P.visaoGeral],
+  ['conteudo', 'Conteúdo', P.conteudo],
+  ['publico', 'Público', P.publico],
+  ['horarios', 'Horários', P.horarios],
+  ['crescimento', 'Crescimento', P.crescimento],
+  ['concorrentes', 'Concorrentes', P.concorrentes],
+  ['instagram', 'Instagram', P.instagram],
+  ['conexoes', 'Conexões', P.conexoes],
 ];
-const TIPOS = { CAROUSEL_ALBUM: 'Carrossel', IMAGE: 'Imagem', VIDEO: 'Vídeo' };
+const PERIODOS = [['7', '7 dias'], ['30', '30 dias'], ['90', '90 dias'], ['tudo', 'Tudo']];
+const DIA = 86400000;
 
 let raiz = null;
 let dados = null;
-let resumos = [];
-let periodo = '30';
-let serie = 'views';
-let ordem = { col: 'data', desc: true };
+let N = null;
+const ui = {
+  periodo: '30', rede: 'todas', nucleo: 'todos',
+  agrupar: 'nucleo', ordem: { col: 'data', desc: true }, grupoPub: 'seguidores', serieCresc: 'seguidores', serieIG: 'views',
+  resumos: [],
+};
 const minis = new Map();
+
+const subAtual = () => {
+  const k = (location.hash.match(/^#\/metricas\/([a-z]+)/) || [])[1];
+  return SUBS.find((s) => s[0] === k) || SUBS[0];
+};
 
 // ---------------------------------------------------------------------------
 
 export async function renderMetricas(el) {
   raiz = el;
   if (!raiz.dataset.ligado) ligar();
-  if (!dados) raiz.innerHTML = '<section><p class="met-carregando">Carregando métricas…</p></section>';
-  await carregar();
+  ligarDicas(raiz);
+  if (!dados) { raiz.innerHTML = '<section><p class="met-carregando">Carregando métricas…</p></section>'; await carregar(); return; }
+  desenhar();
 }
 
 async function carregar() {
   try {
-    [dados, resumos] = await Promise.all([nuvem.igMetricas(), nuvem.listar().catch(() => [])]);
+    [dados, ui.resumos] = await Promise.all([nuvem.igMetricas(), nuvem.listar().catch(() => [])]);
+    N = normalizar(dados);
   } catch (e) {
     raiz.innerHTML = `<section><p class="met-erro">Não foi possível carregar as métricas: ${esc(e.message)}</p></section>`;
     return;
@@ -58,35 +64,51 @@ async function carregar() {
 function desenhar() {
   const est = dados.estado || {};
   if (!est.conectado) { raiz.innerHTML = telaConexao(est); return; }
-  const c = calcular();
-  G.w = Math.max(560, Math.min(1240, raiz.clientWidth - 2 * parseFloat(getComputedStyle(raiz).paddingLeft || 0)) - 22);
+  const [sub, nome, fn] = subAtual();
+  document.title = `${nome} · Métricas · Universo`;
+  const c = recortar(N, ui);
+  const L = gerarLeituras(N, c);
+  const pag = fn(N, c, L, ui);
+  const rolagem = raiz.scrollTop;
   raiz.innerHTML = `
     ${cabecalho(est)}
-    ${est.erro ? `<section><p class="met-erro">${esc(est.erro)}</p></section>` : ''}
-    <section class="met-kpis">${kpis(c)}</section>
-    <section class="met-bloco">
-      <div class="met-bloco-cab">
-        <h2>Conta por dia <span class="info" tabindex="0" data-info="Números diários da conta toda (inclui posts antigos, stories e reels). O dia de ontem ainda pode mudar; os anteriores ficam fechados. Os tracinhos ocre na base marcam os dias com post publicado.">i</span></h2>
-        <div class="seg met-seg" data-grupo="serie">${SERIES.map(([k, r]) => `<button data-v="${k}" class="${k === serie ? 'ativo' : ''}">${r}</button>`).join('')}</div>
-      </div>
-      <div class="met-grafico" id="metGrafico">${grafico(c)}</div>
-    </section>
-    <section class="met-bloco">
-      <div class="met-bloco-cab"><h2>Por núcleo <span class="info" tabindex="0" data-info="Médias por post publicado no período. O núcleo vem da publicação do Universo ligada ao post; posts sem vínculo ficam em “Sem vínculo”. Engajamento = interações ÷ alcance.">i</span></h2></div>
-      ${tabelaNucleos(c)}
-    </section>
-    <section class="met-bloco">
-      <div class="met-bloco-cab"><h2>Por modelo de capa <span class="info" tabindex="0" data-info="Só posts ligados a uma publicação. O código é o mesmo do panorama da página de padrões.">i</span></h2></div>
-      ${tabelaModelos(c)}
-    </section>
-    <section class="met-bloco">
-      <div class="met-bloco-cab">
-        <h2>Posts <span class="cont">${c.posts.length}</span> <span class="info" tabindex="0" data-info="Ligue cada post à publicação do Universo que o gerou. Quando só existe uma publicação com a mesma data de publicação, a ligação é feita sozinha (marcada como auto).">i</span></h2>
-      </div>
-      ${tabelaPosts(c)}
-    </section>`;
-  ligarGrafico(c);
+    <nav class="met-nav" aria-label="Seções das métricas">${SUBS.map(([k, r]) => `<a href="#/metricas/${k}" class="${k === sub ? 'ativo' : ''}">${r}</a>`).join('')}</nav>
+    ${sub === 'conexoes' ? '' : filtros(sub)}
+    ${est.erro ? `<section><p class="met-erro">${esc(est.erro)} <a href="#/metricas/conexoes">Conexões</a></p></section>` : ''}
+    <div class="met-pagina">${pag.html}</div>`;
+  raiz.scrollTop = rolagem;
+  pag.depois(raiz);
   carregarMinis();
+}
+
+function cabecalho(est) {
+  const quando = est.ultimaColeta
+    ? new Date(est.ultimaColeta).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : 'nunca';
+  const expira = est.expira ? Math.round((est.expira - Date.now()) / DIA) : null;
+  return `
+    <section class="met-cab">
+      <div>
+        <h1>Métricas</h1>
+        <p><b>Instagram @${esc(est.usuario || '')}</b> · ${n(est.seguidores)} seguidores · atualizado em ${quando}${expira != null && expira < 20 ? ` · <span class="alerta">token expira em ${expira} dias</span>` : ''}</p>
+      </div>
+      <div class="met-acoes"><button class="bt-padroes" id="metAtualizar">Atualizar agora</button></div>
+    </section>`;
+}
+
+function filtros(sub) {
+  const semNucleo = ['publico', 'concorrentes', 'instagram'].includes(sub);
+  return `<section class="met-filtros">
+    <div class="seg met-seg" data-grupo="periodo">${PERIODOS.map(([k, r]) => `<button data-v="${k}" class="${k === ui.periodo ? 'ativo' : ''}">${r}</button>`).join('')}</div>
+    <div class="met-redes" role="group" aria-label="Redes">
+      <button data-rede="todas" class="${ui.rede === 'todas' ? 'ativo' : ''}">Todas as redes</button>
+      ${REDES.map((r) => `<button data-rede="${r.id}" class="${ui.rede === r.id ? 'ativo' : ''}" ${r.ativa && N.contas[r.id] ? '' : 'disabled title="Ainda não conectado"'}>${esc(r.nome)}</button>`).join('')}
+    </div>
+    ${semNucleo ? '' : `<label class="met-nuc"><span>Núcleo</span><select id="metNucleo">
+      <option value="todos">Todos</option>${ORDEM_NUCLEOS.map((id) => `<option value="${id}" ${ui.nucleo === id ? 'selected' : ''}>${esc(NUCLEOS[id].nome)}</option>`).join('')}
+      <option value="sem" ${ui.nucleo === 'sem' ? 'selected' : ''}>Sem vínculo</option>
+    </select></label>`}
+  </section>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,260 +151,6 @@ function telaConexao(est) {
     </section>`;
 }
 
-function cabecalho(est) {
-  const quando = est.ultimaColeta
-    ? new Date(est.ultimaColeta).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    : 'nunca';
-  const expira = est.expira ? Math.round((est.expira - Date.now()) / DIA) : null;
-  return `
-    <section class="met-cab">
-      <div>
-        <h1>Métricas</h1>
-        <p><b>Instagram @${esc(est.usuario || '')}</b> · ${n(est.seguidores)} seguidores · ${n(est.nposts)} posts · atualizado em ${quando}${expira != null && expira < 20 ? ` · <span class="alerta">token expira em ${expira} dias</span>` : ''}</p>
-      </div>
-      <div class="met-acoes">
-        <div class="seg met-seg" data-grupo="periodo">${PERIODOS.map(([k, r]) => `<button data-v="${k}" class="${k === periodo ? 'ativo' : ''}">${r}</button>`).join('')}</div>
-        <button class="bt-padroes" id="metAtualizar">Atualizar agora</button>
-        <button class="bt-link" id="metDesconectar" title="Esquecer o token (o histórico fica guardado)">Desconectar</button>
-      </div>
-    </section>`;
-}
-
-// ---------------------------------------------------------------------------
-// Cálculos
-
-const interacoesDe = (m) => m.interacoes ?? ((m.curtidas || 0) + (m.comentarios || 0) + (m.salvos || 0) + (m.compart || 0));
-const engajDe = (m) => (m.alcance ? interacoesDe(m) / m.alcance : null);
-
-function calcular() {
-  const hoje = diaLocal(Date.now());
-  const diasTodos = Object.keys(dados.dias).sort();
-  const primeiro = diasTodos[0] || hoje;
-  const inicio = periodo === 'tudo' ? primeiro : diaLocal(Date.now() - Number(periodo) * DIA);
-  // eixo do gráfico: de `inicio` até ontem, dia a dia
-  const eixo = [];
-  for (let t = Date.parse(inicio); diaLocal(t + 3 * 3600000) < hoje; t += DIA) eixo.push(new Date(t).toISOString().slice(0, 10));
-  const dias = eixo.map((d) => ({ d, ...(dados.dias[d] || {}) }));
-
-  const pubs = dados.pubs || {};
-  const posts = dados.posts
-    .filter((p) => p.dia >= inicio)
-    .map((p) => {
-      const v = dados.vinculos[p.id];
-      const pub = v?.pub ? pubs[v.pub] : null;
-      return { ...p, vinc: v || null, pub, nucleo: pub?.nucleo || 'sem', inter: interacoesDe(p.m), engaj: engajDe(p.m) };
-    });
-
-  // seguidores: diferença entre a primeira e a última foto do período; senão, soma dos novos
-  const fotos = diasTodos.filter((d) => d >= inicio && dados.dias[d].seguidores != null);
-  let ganho = null;
-  if (fotos.length >= 2) ganho = dados.dias[fotos.at(-1)].seguidores - dados.dias[fotos[0]].seguidores;
-  else {
-    const novos = dias.map((x) => x.novos).filter((v) => v != null);
-    if (novos.length) ganho = soma(novos);
-  }
-  return { inicio, eixo, dias, posts, ganho };
-}
-
-const valores = (dias, k) => dias.map((x) => x[k]).filter((v) => v != null);
-
-function kpis(c) {
-  const est = dados.estado;
-  const comAlc = c.posts.filter((p) => p.engaj != null);
-  const ligados = c.posts.filter((p) => p.pub).length;
-  const tiles = [
-    ['Seguidores', n(est.seguidores), c.ganho == null ? 'variação aparece após alguns dias de coleta' : `${c.ganho >= 0 ? '+' : ''}${n(c.ganho)} no período`],
-    ['Visualizações', nc(soma(valores(c.dias, 'views'))), `${valores(c.dias, 'views').length} dias com dados`],
-    ['Alcance por dia', nc(media(valores(c.dias, 'alcance'))), 'média diária de contas alcançadas'],
-    ['Interações', nc(soma(valores(c.dias, 'interacoes'))), 'curtidas, comentários, salvamentos e compartilhamentos'],
-    ['Posts publicados', n(c.posts.length), `${ligados} ligados a publicações do Universo`],
-    ['Engajamento por post', pct(media(comAlc.map((p) => p.engaj))), 'interações ÷ alcance, média dos posts'],
-  ];
-  return tiles.map(([r, v, nota]) => `<div class="met-kpi"><span>${r}</span><b>${v}</b><small>${esc(nota)}</small></div>`).join('');
-}
-
-// ---------------------------------------------------------------------------
-// Gráfico diário (uma série por vez, sem segundo eixo)
-
-const G = { w: 1000, h: 250, e: 48, d: 12, t: 14, b: 30 };
-
-function escala(c) {
-  const vals = valores(c.dias, serie);
-  const bruto = Math.max(1, ...vals) / 4; // 4 faixas de grade com passo "redondo"
-  const pot = 10 ** Math.floor(Math.log10(bruto));
-  const passo = [1, 2, 2.5, 5, 10].map((f) => f * pot).find((p) => p >= bruto);
-  const max = passo * 4;
-  const x = (i) => G.e + (c.eixo.length <= 1 ? 0 : (i * (G.w - G.e - G.d)) / (c.eixo.length - 1));
-  const y = (v) => G.t + (1 - v / max) * (G.h - G.t - G.b);
-  return { max, x, y };
-}
-
-function grafico(c) {
-  if (!c.eixo.length) return '<p class="met-vazio">Ainda não há dias coletados.</p>';
-  const { max, x, y } = escala(c);
-  const grade = [0, 0.25, 0.5, 0.75, 1].map((f) => {
-    const v = max * f;
-    const rot = v >= 10000 ? NFc.format(v) : NF.format(v);
-    return `<line x1="${G.e}" x2="${G.w - G.d}" y1="${y(v)}" y2="${y(v)}" class="g-grade${f === 0 ? ' base' : ''}"/><text x="${G.e - 8}" y="${y(v) + 4}" class="g-rot" text-anchor="end">${rot}</text>`;
-  }).join('');
-  // linha com quebras onde falta dado
-  let caminho = '';
-  let aberto = false;
-  c.dias.forEach((dd, i) => {
-    const v = dd[serie];
-    if (v == null) { aberto = false; return; }
-    caminho += `${aberto ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
-    aberto = true;
-  });
-  const isolados = c.dias.map((dd, i) => {
-    const v = dd[serie];
-    const ant = c.dias[i - 1]?.[serie];
-    const prox = c.dias[i + 1]?.[serie];
-    return v != null && ant == null && prox == null ? `<circle cx="${x(i)}" cy="${y(v)}" r="3" class="g-ponto"/>` : '';
-  }).join('');
-  const comPost = new Set(c.posts.map((p) => p.dia));
-  const marcas = c.eixo.map((d, i) => (comPost.has(d) ? `<line x1="${x(i)}" x2="${x(i)}" y1="${G.h - G.b}" y2="${G.h - G.b + 6}" class="g-post"/>` : '')).join('');
-  const nRot = Math.min(6, c.eixo.length);
-  const rotX = Array.from({ length: nRot }, (_, k) => Math.round((k * (c.eixo.length - 1)) / Math.max(1, nRot - 1)))
-    .map((i) => `<text x="${x(i)}" y="${G.h - 6}" class="g-rot" text-anchor="${i === 0 ? 'start' : i === c.eixo.length - 1 ? 'end' : 'middle'}">${dataCurta(c.eixo[i], false)}</text>`).join('');
-  return `
-    <svg viewBox="0 0 ${G.w} ${G.h}" role="img" aria-label="${esc(SERIES.find((s) => s[0] === serie)[1])} por dia">
-      ${grade}${marcas}
-      <path d="${caminho}" class="g-linha"/>${isolados}
-      <line class="g-mira" id="gMira" y1="${G.t}" y2="${G.h - G.b}" x1="0" x2="0"/>
-      <circle class="g-foco" id="gFoco" r="5" cx="-10" cy="-10"/>
-      ${rotX}
-      <rect class="g-alvo" id="gAlvo" x="${G.e}" y="0" width="${G.w - G.e - G.d}" height="${G.h}"/>
-    </svg>
-    <div class="g-dica" id="gDica"></div>
-    ${valores(c.dias, serie).length ? '' : '<p class="met-vazio sob">Sem dados desta métrica no período.</p>'}`;
-}
-
-function ligarGrafico(c) {
-  const alvo = raiz.querySelector('#gAlvo');
-  if (!alvo || !c.eixo.length) return;
-  const svg = alvo.ownerSVGElement;
-  const { x, y } = escala(c);
-  const mira = raiz.querySelector('#gMira');
-  const foco = raiz.querySelector('#gFoco');
-  const dica = raiz.querySelector('#gDica');
-  const nome = SERIES.find((s) => s[0] === serie)[1];
-  const postsDia = {};
-  for (const p of c.posts) (postsDia[p.dia] = postsDia[p.dia] || []).push(p);
-  const mover = (ev) => {
-    const r = svg.getBoundingClientRect();
-    const px = ((ev.clientX - r.left) / r.width) * G.w;
-    const i = Math.max(0, Math.min(c.eixo.length - 1, Math.round(((px - G.e) / (G.w - G.e - G.d)) * (c.eixo.length - 1))));
-    const dd = c.dias[i];
-    const v = dd[serie];
-    mira.setAttribute('x1', x(i)); mira.setAttribute('x2', x(i));
-    mira.style.opacity = 1;
-    if (v != null) { foco.setAttribute('cx', x(i)); foco.setAttribute('cy', y(v)); foco.style.opacity = 1; } else foco.style.opacity = 0;
-    const ps = postsDia[dd.d] || [];
-    dica.innerHTML = `<b>${dataCurta(dd.d)}</b><span>${nome}: <b>${v == null ? 'sem dado' : n(v)}</b></span>${ps.length ? `<span class="g-dica-post">${ps.length} post${ps.length > 1 ? 's' : ''} publicado${ps.length > 1 ? 's' : ''}</span>` : ''}`;
-    dica.style.opacity = 1;
-    const fx = (x(i) / G.w) * r.width;
-    dica.style.left = `${Math.min(Math.max(fx, 70), r.width - 70)}px`;
-  };
-  alvo.addEventListener('pointermove', mover);
-  alvo.addEventListener('pointerleave', () => { mira.style.opacity = 0; foco.style.opacity = 0; dica.style.opacity = 0; });
-}
-
-// ---------------------------------------------------------------------------
-// Tabelas
-
-function linhaMedias(posts) {
-  const comAlc = posts.filter((p) => p.m.alcance != null);
-  return {
-    n: posts.length,
-    alcance: media(comAlc.map((p) => p.m.alcance)),
-    views: media(posts.filter((p) => p.m.views != null).map((p) => p.m.views)),
-    inter: media(posts.map((p) => p.inter)),
-    salvos: media(posts.filter((p) => p.m.salvos != null).map((p) => p.m.salvos)),
-    engaj: media(posts.filter((p) => p.engaj != null).map((p) => p.engaj)),
-  };
-}
-
-function tabelaNucleos(c) {
-  const linhas = [...ORDEM_NUCLEOS, 'sem']
-    .map((id) => ({ id, nome: id === 'sem' ? 'Sem vínculo' : NUCLEOS[id].nome, ...linhaMedias(c.posts.filter((p) => p.nucleo === id)) }))
-    .filter((l) => l.n);
-  if (!linhas.length) return '<p class="met-vazio">Nenhum post no período.</p>';
-  const maxAlc = Math.max(1, ...linhas.map((l) => l.alcance || 0));
-  return `<div class="tabela-wrap"><table class="tab-texto met-tab">
-    <thead><tr><th>Núcleo</th><th class="d">Posts</th><th>Alcance médio</th><th class="d">Visualizações</th><th class="d">Interações</th><th class="d">Salvamentos</th><th class="d">Engajamento</th></tr></thead>
-    <tbody>${linhas.map((l) => `<tr class="${l.id === 'sem' ? 'sem' : ''}">
-      <td><b>${esc(l.nome)}</b></td><td class="num">${n(l.n)}</td>
-      <td class="num barra-c"><span class="met-barra"><i style="width:${((l.alcance || 0) / maxAlc) * 100}%"></i></span>${n(l.alcance)}</td>
-      <td class="num">${n(l.views)}</td><td class="num">${n(l.inter)}</td><td class="num">${n(l.salvos)}</td><td class="num">${pct(l.engaj)}</td>
-    </tr>`).join('')}</tbody></table></div>`;
-}
-
-function codigoModelo(nucleo, modeloId) {
-  const lista = modelosDo(nucleo);
-  const i = lista.findIndex((m) => m.id === modeloId);
-  return i < 0 ? { cod: '—', nome: modeloId || '—' } : { cod: `${NUCLEOS[nucleo].sigla.toUpperCase()}-${String(i + 1).padStart(2, '0')}`, nome: lista[i].nome };
-}
-
-function tabelaModelos(c) {
-  const grupos = {};
-  for (const p of c.posts) {
-    if (!p.pub?.capa) continue;
-    const k = `${p.pub.nucleo}|${p.pub.capa}`;
-    (grupos[k] = grupos[k] || []).push(p);
-  }
-  const linhas = Object.entries(grupos).map(([k, ps]) => {
-    const [nucleo, capa] = k.split('|');
-    return { nucleo, ...codigoModelo(nucleo, capa), ...linhaMedias(ps) };
-  }).sort((a, b) => (b.engaj ?? -1) - (a.engaj ?? -1));
-  if (!linhas.length) return '<p class="met-vazio">Ligue posts a publicações do Universo (tabela abaixo) para comparar os modelos de capa.</p>';
-  return `<div class="tabela-wrap"><table class="tab-texto met-tab">
-    <thead><tr><th>Modelo</th><th>Núcleo</th><th class="d">Posts</th><th class="d">Alcance médio</th><th class="d">Interações</th><th class="d">Salvamentos</th><th class="d">Engajamento</th></tr></thead>
-    <tbody>${linhas.map((l) => `<tr>
-      <td><span class="met-cod">${esc(l.cod)}</span> ${esc(l.nome)}</td><td>${esc(NUCLEOS[l.nucleo]?.nome || '')}</td>
-      <td class="num">${n(l.n)}</td><td class="num">${n(l.alcance)}</td><td class="num">${n(l.inter)}</td><td class="num">${n(l.salvos)}</td><td class="num">${pct(l.engaj)}</td>
-    </tr>`).join('')}</tbody></table></div>`;
-}
-
-const COLS = [
-  ['data', 'Data', (p) => p.data],
-  ['alcance', 'Alcance', (p) => p.m.alcance],
-  ['views', 'Visualiz.', (p) => p.m.views],
-  ['inter', 'Interações', (p) => p.inter],
-  ['salvos', 'Salvos', (p) => p.m.salvos],
-  ['compart', 'Compart.', (p) => p.m.compart],
-  ['engaj', 'Engaj.', (p) => p.engaj],
-];
-
-function opcoesPub(p) {
-  const atual = p.vinc?.pub || '';
-  const lista = [...resumos].sort((a, b) => (b.dataPublicacao || b.criado || '').localeCompare(a.dataPublicacao || a.criado || ''));
-  const rot = (r) => `${r.dataPublicacao ? dataCurta(r.dataPublicacao) + ' · ' : ''}${NUCLEOS[r.nucleo]?.nome || ''} · ${r.titulo || 'sem título'}`;
-  return `<option value="">${p.vinc && !p.vinc.pub ? 'Sem publicação' : '— ligar a uma publicação —'}</option>
-    ${p.vinc && !p.vinc.pub ? '' : '<option value="-">Sem publicação</option>'}
-    ${lista.map((r) => `<option value="${esc(r.id)}" ${r.id === atual ? 'selected' : ''}>${esc(rot(r))}</option>`).join('')}`;
-}
-
-function tabelaPosts(c) {
-  if (!c.posts.length) return '<p class="met-vazio">Nenhum post no período.</p>';
-  const col = COLS.find((k) => k[0] === ordem.col) || COLS[0];
-  const posts = [...c.posts].sort((a, b) => {
-    const va = col[2](a); const vb = col[2](b);
-    if (va == null) return 1; if (vb == null) return -1;
-    return (va < vb ? -1 : va > vb ? 1 : 0) * (ordem.desc ? -1 : 1);
-  });
-  const th = ([k, r]) => `<th class="ord ${k === 'data' ? '' : 'd'} ${ordem.col === k ? (ordem.desc ? 'desc' : 'asc') : ''}" data-ord="${k}">${r}</th>`;
-  return `<div class="tabela-wrap"><table class="tab-texto met-tab met-posts">
-    <thead><tr><th></th>${th(COLS[0])}<th>Post</th><th>Publicação do Universo</th>${COLS.slice(1).map(th).join('')}</tr></thead>
-    <tbody>${posts.map((p) => `<tr>
-      <td class="mini-c"><a href="${esc(p.link)}" target="_blank" rel="noopener" class="met-mini" data-mini="${p.mini ? p.id : ''}"></a></td>
-      <td class="dt">${dataCurta(p.dia)}</td>
-      <td class="leg"><span class="met-tipo">${esc(p.produto === 'REELS' ? 'Reel' : TIPOS[p.tipo] || p.tipo)}</span> <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc((p.legenda || 'sem legenda').split('\n')[0].slice(0, 90))}</a></td>
-      <td class="vinc"><select data-vincular="${p.id}" class="${p.pub ? 'ligado' : ''}">${opcoesPub(p)}</select>${p.vinc?.auto ? '<small class="auto" title="Ligado automaticamente pela data de publicação">auto</small>' : ''}</td>
-      <td class="num">${n(p.m.alcance)}</td><td class="num">${n(p.m.views)}</td><td class="num">${n(p.inter)}</td>
-      <td class="num">${n(p.m.salvos)}</td><td class="num">${n(p.m.compart)}</td><td class="num">${pct(p.engaj)}</td>
-    </tr>`).join('')}</tbody></table></div>`;
-}
 
 async function carregarMinis() {
   for (const a of raiz.querySelectorAll('[data-mini]')) {
@@ -403,9 +171,50 @@ function msg(t, erro, id = '#metMsg') {
   if (el) { el.textContent = t; el.classList.toggle('erro', !!erro); }
 }
 
+async function atualizarTudo(bt) {
+  bt.disabled = true;
+  bt.textContent = 'Atualizando…';
+  try { await nuvem.igColetar(); } catch { /* o erro aparece no estado */ }
+  await carregar();
+}
+
+/** Guarda tema/objetivo sem redesenhar a tabela (para não perder o foco de quem digita). */
+async function salvarEtiqueta(chave) {
+  const tema = raiz.querySelector(`[data-tema="${CSS.escape(chave)}"]`)?.value || '';
+  const objetivo = raiz.querySelector(`[data-objetivo="${CSS.escape(chave)}"]`)?.value || '';
+  try {
+    await nuvem.etiquetar(chave, { tema, objetivo });
+    dados.etiquetas = dados.etiquetas || {};
+    if (tema || objetivo) dados.etiquetas[chave] = { tema: tema.trim(), objetivo }; else delete dados.etiquetas[chave];
+    N = normalizar(dados);
+    const lista = raiz.querySelector('#metTemas');
+    if (lista && tema && ![...lista.options].some((o) => o.value === tema.trim())) lista.insertAdjacentHTML('beforeend', `<option value="${esc(tema.trim())}">`);
+  } catch (err) {
+    alert('Não foi possível salvar: ' + err.message);
+  }
+}
+
 function ligar() {
   raiz.dataset.ligado = '1';
   raiz.addEventListener('submit', async (e) => {
+    if (e.target.id === 'metAddConc') {
+      e.preventDefault();
+      const campo = raiz.querySelector('#metConcUser');
+      const bt = e.target.querySelector('button');
+      if (!campo.value.trim()) return;
+      bt.disabled = true;
+      msg('Buscando a conta…', false, '#metConcMsg');
+      try {
+        dados.concorrentes = await nuvem.concAdicionar(campo.value);
+        N = normalizar(dados);
+        desenhar();
+        raiz.querySelector('#metConcUser')?.focus();
+      } catch (err) {
+        msg(err.message, true, '#metConcMsg');
+        bt.disabled = false;
+      }
+      return;
+    }
     if (e.target.id === 'metLogin') {
       e.preventDefault();
       const bt = raiz.querySelector('#metEntrar');
@@ -439,48 +248,65 @@ function ligar() {
       bt.disabled = false;
     }
   });
+
   raiz.addEventListener('click', async (e) => {
     const seg = e.target.closest('.met-seg button');
     if (seg) {
-      const grupo = seg.parentElement.dataset.grupo;
-      if (grupo === 'periodo') periodo = seg.dataset.v;
-      if (grupo === 'serie') serie = seg.dataset.v;
+      ui[seg.parentElement.dataset.grupo] = seg.dataset.v;
       desenhar();
       return;
     }
+    const rd = e.target.closest('[data-rede]');
+    if (rd && !rd.disabled) { ui.rede = rd.dataset.rede; desenhar(); return; }
     const th = e.target.closest('th[data-ord]');
     if (th) {
       const k = th.dataset.ord;
-      ordem = ordem.col === k ? { col: k, desc: !ordem.desc } : { col: k, desc: true };
+      ui.ordem = ui.ordem.col === k ? { col: k, desc: !ui.ordem.desc } : { col: k, desc: true };
       desenhar();
       return;
     }
-    if (e.target.id === 'metAtualizar') {
-      e.target.disabled = true;
-      e.target.textContent = 'Atualizando…';
-      try { await nuvem.igColetar(); } catch { /* o erro aparece no estado */ }
-      await carregar();
-      return;
-    }
+    if (e.target.id === 'metAtualizar' || e.target.id === 'metAtualizar2') { await atualizarTudo(e.target); return; }
     if (e.target.id === 'metDesconectar') {
       if (!confirm('Desconectar o Instagram? O histórico já coletado continua guardado.')) return;
       await nuvem.igDesconectar();
       await carregar();
+      return;
+    }
+    const rem = e.target.closest('[data-conc-remover]');
+    if (rem) {
+      const u = rem.dataset.concRemover;
+      if (!confirm(`Remover @${u} dos concorrentes? O histórico desta conta será apagado.`)) return;
+      rem.disabled = true;
+      try { dados.concorrentes = await nuvem.concRemover(u); N = normalizar(dados); desenhar(); } catch (err) { alert(err.message); rem.disabled = false; }
+      return;
+    }
+    const at = e.target.closest('[data-conc-atualizar]');
+    if (at) {
+      at.disabled = true;
+      at.textContent = 'buscando…';
+      try { dados.concorrentes = await nuvem.concAtualizar(at.dataset.concAtualizar); N = normalizar(dados); desenhar(); } catch (err) { alert(err.message); at.disabled = false; at.textContent = 'atualizar'; }
     }
   });
+
   raiz.addEventListener('change', async (e) => {
+    if (e.target.id === 'metNucleo') { ui.nucleo = e.target.value; desenhar(); return; }
+    const tema = e.target.closest('[data-tema]');
+    if (tema) { await salvarEtiqueta(tema.dataset.tema); return; }
+    const obj = e.target.closest('[data-objetivo]');
+    if (obj) { obj.classList.toggle('ligado', !!obj.value); await salvarEtiqueta(obj.dataset.objetivo); return; }
     const sel = e.target.closest('select[data-vincular]');
-    if (!sel) return;
-    const id = sel.dataset.vincular;
-    const v = sel.value === '-' ? null : sel.value || null;
-    if (sel.value === '' ) return;
+    if (!sel || sel.value === '') return;
+    const v = sel.value === '-' ? null : sel.value;
     sel.disabled = true;
     try {
-      await nuvem.igVincular(id, v);
+      await nuvem.igVincular(sel.dataset.vincular, v);
       await carregar();
     } catch (err) {
       sel.disabled = false;
       alert('Não foi possível ligar: ' + err.message);
     }
+  });
+  raiz.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches('[data-tema]')) e.target.blur();
   });
 }
