@@ -10,3 +10,7 @@ kv_namespaces = [
 
 # A senha (UNIVERSO_SENHA) é enviada pelo GitHub Actions a partir do secret
 # do repositório — nunca coloque o valor aqui.
+
+# Coleta diária das métricas do Instagram: 06:17 em Brasília (09:17 UTC).
+[triggers]
+crons = ["17 9 * * *"]

@@ -16,6 +16,15 @@ A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 p
    - **Cards:** setas, duplicar e excluir ficam sobre o card em destaque; **+** adiciona. Visualização **3** ou **Todos** no canto superior direito.
 5. **Exportar** (canto inferior direito): JPG otimizado em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.jpg`), um card ou o carrossel em `.zip`. Exportar também salva a publicação.
 
+## Métricas (`#/metricas`)
+
+Hub de desempenho do marketing do Odisse. **Fase 1: Instagram** (conta única @odisse, profissional).
+
+- **Conexão (uma vez):** em developers.facebook.com, crie um app, adicione o produto *Instagram → API com login do Instagram*, gere o token da conta @odisse e cole na página Métricas. O token fica só no KV (nunca volta pela API) e é renovado toda semana pelo Worker.
+- **Coleta:** todo dia às 06:17 (cron do Worker) e no botão *Atualizar agora*. Guarda os números diários da conta (visualizações, alcance, contas engajadas, interações, seguidores) e as métricas de cada post, com histórico diário nos primeiros 90 dias — o Instagram apaga os dados da conta depois de 90 dias, o Universo não.
+- **Vínculo com o Universo:** cada post do Instagram pode ser ligado à publicação que o gerou. Se só houver uma publicação com a mesma *data de publicação*, a ligação é automática. Com isso as métricas se abrem **por núcleo** e **por modelo de capa** (códigos OE-01, OA-03…).
+- Miniaturas dos posts ficam guardadas no KV (`igmini:`), porque os links do Instagram expiram.
+
 ## Entrada e armazenamento
 
 O Universo abre numa tela de **senha** (a mesma cadastrada no secret `UNIVERSO_SENHA`). A senha fica lembrada no computador até alguém clicar em **Sair**.
@@ -52,11 +61,12 @@ assets/js/imaging.js     leitura de imagem e duotone com grão
 assets/js/app.js         início, arquivo, edição, carrossel e exportação
 assets/js/store.js       armazenamento local (IndexedDB)
 assets/js/nuvem.js       cliente da API
-worker/                  API Cloudflare Worker + KV
+assets/js/pagina-metricas.js  página de métricas (Instagram)
+worker/                  API Cloudflare Worker + KV (index.js; instagram.js = coleta e métricas)
 assets/fonts/            Inter variável (com eixo óptico, para Inter Display)
 vendor/                  html-to-image e JSZip
 ```
 
 ## Próximas páginas (menu geral)
 
-Stories 9:16 · Calendário (com a regra de vizinhos do grid do perfil) · Biblioteca de imagens · Estratégia.
+Stories 9:16 · Calendário (com a regra de vizinhos do grid do perfil) · Biblioteca de imagens · Estratégia · Métricas fase 2 (TikTok, sites, Substack, ações manuais).

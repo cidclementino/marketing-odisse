@@ -11,6 +11,7 @@ import * as local from './store.js';
 import * as nuvem from './nuvem.js';
 import { instalarPadroes } from './padroes.js';
 import { renderPadroes } from './pagina-padroes.js';
+import { renderMetricas } from './pagina-metricas.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -748,7 +749,7 @@ async function exportarTudo() {
 // Navegação
 
 function mostrar(vista) {
-  for (const v of ['login', 'inicio', 'editor', 'padroes']) document.body.classList.toggle('vista-' + v, vista === v);
+  for (const v of ['login', 'inicio', 'editor', 'padroes', 'metricas']) document.body.classList.toggle('vista-' + v, vista === v);
 }
 
 async function sairDoEditor() {
@@ -762,6 +763,16 @@ async function sairDoEditor() {
 async function rotear() {
   if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
   const m = location.hash.match(/^#\/p\/(.+)$/);
+  const metr = location.hash === '#/metricas';
+  $('#menuPosts').classList.toggle('ativo', !metr);
+  $('#menuMetricas').classList.toggle('ativo', metr);
+  if (metr) {
+    if (pub) await sairDoEditor();
+    document.title = 'Métricas · Universo';
+    mostrar('metricas');
+    await renderMetricas($('#metricas'));
+    return;
+  }
   if (location.hash === '#/padroes') {
     if (pub) await sairDoEditor();
     document.title = 'Padrões · Universo';

@@ -15,10 +15,23 @@
 //   HEAD   /api/imagens/:ref         -> 200 se existe
 //   GET    /api/imagens/:ref         -> imagem
 //   PUT    /api/imagens/:ref         -> grava imagem (corpo binário)
+//
+//   Instagram (ver instagram.js):
+//   GET    /api/instagram/estado            -> conexão, perfil, última coleta
+//   POST   /api/instagram/conectar          -> { token } valida, guarda e faz a primeira coleta
+//   DELETE /api/instagram/conectar          -> esquece o token
+//   POST   /api/instagram/coletar           -> coleta agora
+//   GET    /api/instagram/metricas          -> tudo para a página de métricas
+//   PUT    /api/instagram/vinculos/:media   -> { pub } liga o post a uma publicação (null = sem)
+//   GET    /api/instagram/miniaturas/:media -> miniatura guardada do post
+//
+// Cron diário (wrangler.toml) -> coleta do Instagram.
+
+import * as ig from './instagram.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, HEAD, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
@@ -66,6 +79,7 @@ function resumo(pub) {
     ncards: pub.cards?.length || 0,
     criado: pub.criado,
     atualizado: pub.atualizado,
+    dataPublicacao: pub.globais?.dataPublicacao || '',
     capa: typeof pub.capa === 'string' && pub.capa.length < 400000 ? pub.capa : '',
   };
 }
@@ -78,6 +92,7 @@ export default {
     if (partes[0] !== 'api') return erro('rota não encontrada', 404);
     if (!autorizado(request, env)) return erro('não autorizado', 401);
     const kv = env.UNIVERSO;
+    if (partes[1] === 'instagram') return instagram(request, env, partes.slice(2));
     const [, recurso, id] = partes;
     if (id && !ID.test(id)) return erro('id inválido', 400);
 
@@ -136,4 +151,39 @@ export default {
 
     return erro('rota não encontrada', 404);
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(ig.coletar(env));
+  },
 };
+
+async function instagram(request, env, [acao, id]) {
+  const m = request.method;
+  try {
+    if (acao === 'estado' && m === 'GET') return json(await ig.estado(env));
+    if (acao === 'metricas' && m === 'GET') return json(await ig.metricas(env));
+    if (acao === 'coletar' && m === 'POST') return json(await ig.coletar(env));
+    if (acao === 'conectar' && m === 'POST') {
+      let corpo;
+      try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+      const r = await ig.conectar(env, corpo?.token);
+      return r.ok ? json(r) : erro(r.erro, 502);
+    }
+    if (acao === 'conectar' && m === 'DELETE') { await ig.desconectar(env); return json({ ok: true }); }
+    if (acao === 'vinculos' && id && /^\d{5,32}$/.test(id) && m === 'PUT') {
+      let corpo;
+      try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+      const pub = corpo?.pub || null;
+      if (pub && !ID.test(pub)) return erro('publicação inválida', 400);
+      return json(await ig.vincular(env, id, pub));
+    }
+    if (acao === 'miniaturas' && id && /^\d{5,32}$/.test(id) && m === 'GET') {
+      const { value, metadata } = await env.UNIVERSO.getWithMetadata(`igmini:${id}`, 'arrayBuffer');
+      if (!value) return erro('não encontrada', 404);
+      return new Response(value, { headers: { 'Content-Type': metadata?.tipo || 'image/jpeg', 'Cache-Control': 'private, max-age=31536000, immutable', ...CORS } });
+    }
+  } catch (e) {
+    return erro(e.message || 'erro no Instagram', e.codigo === 'token' || e.codigo === 'conta' ? 400 : 502);
+  }
+  return erro('rota não encontrada', 404);
+}

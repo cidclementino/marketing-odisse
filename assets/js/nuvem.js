@@ -70,3 +70,28 @@ export async function baixarImg(ref) {
     fr.readAsDataURL(blob);
   });
 }
+
+// ---- Instagram (métricas) ---------------------------------------------------
+/** Chamada JSON que devolve a mensagem de erro do servidor, quando houver. */
+async function reqIG(caminho, metodo = 'GET', corpo) {
+  const c = { url: URL_PADRAO, ...config() };
+  if (!c.senha) throw new Error('senha incorreta');
+  const res = await fetch(c.url.replace(/\/$/, '') + caminho, {
+    method: metodo,
+    headers: { Authorization: `Bearer ${c.senha}`, 'Content-Type': 'application/json' },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('senha incorreta');
+  if (!res.ok) throw new Error(dados.error || `erro ${res.status}`);
+  return dados;
+}
+export const igMetricas = () => reqIG('/api/instagram/metricas');
+export const igConectar = (token) => reqIG('/api/instagram/conectar', 'POST', { token });
+export const igDesconectar = () => reqIG('/api/instagram/conectar', 'DELETE');
+export const igColetar = () => reqIG('/api/instagram/coletar', 'POST');
+export const igVincular = (mediaId, pub) => reqIG(`/api/instagram/vinculos/${mediaId}`, 'PUT', { pub });
+export async function igMiniatura(mediaId) {
+  const blob = await (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
+  return URL.createObjectURL(blob);
+}
