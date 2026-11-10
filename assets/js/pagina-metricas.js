@@ -113,6 +113,7 @@ function telaConexao(est) {
           <label class="campo"><span>ID da configuração</span><input type="text" id="metConfig" inputmode="numeric" value="${esc(app.config || '')}" required></label>
         </div>
         <label class="campo"><span>Chave secreta do app</span><input type="password" id="metSegredo" autocomplete="off" placeholder="${app.temSegredo ? 'já guardada — deixe em branco para manter' : ''}" ${app.temSegredo ? '' : 'required'}></label>
+<label class="campo"><span>ID da conta do Instagram <i>(opcional)</i></span><input type="text" id="metIgId" inputmode="numeric" value="${esc(app.igId || '')}" placeholder="só se o Universo não encontrar a conta sozinho"><small>No portfólio empresarial: Contas → Contas do Instagram → a conta → ID.</small></label>
         <button type="submit" id="metEntrar">Entrar com o Instagram</button>
         <p class="met-msg" id="metMsg" role="status"></p>
       </form>
@@ -120,6 +121,7 @@ function telaConexao(est) {
         <summary>Já tenho um token de acesso</summary>
         <form class="met-form" id="metForm">
           <label class="campo"><span>Token (de usuário do sistema ou do login do Instagram)</span><input type="password" id="metToken" autocomplete="off" required></label>
+<label class="campo"><span>ID da conta do Instagram <i>(opcional)</i></span><input type="text" id="metIgId2" inputmode="numeric" value="${esc(app.igId || '')}" placeholder="só se o Universo não encontrar a conta sozinho"><small>No portfólio empresarial: Contas → Contas do Instagram → a conta → ID.</small></label>
           <button type="submit" id="metConectar">Conectar e coletar</button>
           <p class="met-msg" id="metMsgToken" role="status"></p>
         </form>
@@ -415,6 +417,7 @@ function ligar() {
           config: raiz.querySelector('#metConfig').value,
           segredo: raiz.querySelector('#metSegredo').value,
           volta: location.origin + location.pathname,
+          igId: raiz.querySelector('#metIgId').value,
         });
         location.href = url;
       } catch (err) {
@@ -429,7 +432,7 @@ function ligar() {
     bt.disabled = true;
     msg('Conectando e buscando os primeiros números… pode levar alguns segundos.', false, '#metMsgToken');
     try {
-      await nuvem.igConectar(raiz.querySelector('#metToken').value);
+      await nuvem.igConectar(raiz.querySelector('#metToken').value, raiz.querySelector('#metIgId2').value);
       await carregar();
     } catch (err) {
       msg(err.message, true, '#metMsgToken');

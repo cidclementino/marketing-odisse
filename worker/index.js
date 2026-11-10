@@ -170,7 +170,7 @@ async function instagram(request, env, [acao, id]) {
     if (acao === 'conectar' && m === 'POST') {
       let corpo;
       try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
-      const r = await ig.conectar(env, corpo?.token);
+      const r = await ig.conectar(env, corpo?.token, corpo?.igId);
       return r.ok ? json(r) : erro(r.erro, 502);
     }
     if (acao === 'login' && m === 'POST') {

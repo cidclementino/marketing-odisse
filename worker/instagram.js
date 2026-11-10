@@ -66,7 +66,8 @@ const acesso = (tk) => (tk.modo === 'unificado'
   : { ig: cliente(tk.token, API_IG), raiz: '/me' });
 
 /** Conecta com um token colado (IGAA… do login do Instagram ou EAA… de usuário do sistema). */
-export async function conectar(env, token) {
+export async function conectar(env, token, igId) {
+  igId = /^\d{5,32}$/.test(String(igId || '').trim()) ? String(igId).trim() : '';
   token = String(token || '').trim();
   if (token.length < 20) throw new ErroIG('Token inválido.', 'token');
   if (/^IG/.test(token)) {
@@ -79,19 +80,52 @@ export async function conectar(env, token) {
       modo: 'instagram', token, igId: eu.user_id || eu.id, criado: agora, renovado: agora, expira: agora + 60 * DIA_MS,
     }));
   } else {
-    await guardarUnificado(env, token);
+    await guardarUnificado(env, token, null, igId);
   }
   return coletar(env, { inicial: true });
 }
 
-async function guardarUnificado(env, token, expiraEm) {
-  const r = await cliente(token, API_FB).get('/me/assigned_instagram_accounts', { fields: 'id,username' });
-  const contas = r.data || [];
-  if (!contas.length) throw new ErroIG('O token não tem nenhuma conta do Instagram atribuída. Na configuração do login unificado, inclua a conta do Instagram como ativo.', 'conta');
-  const conta = contas.find((c) => /odisse/i.test(c.username || '')) || contas[0];
+/** Descobre a conta do Instagram que o token alcança, por vários caminhos. */
+async function acharConta(env, token, igIdDado) {
+  const fb = cliente(token, API_FB);
+  const tentativas = [];
+  if (igIdDado) return { id: igIdDado };
+  // 1. usuário do sistema do login unificado
+  try {
+    const r = await fb.get('/me/assigned_instagram_accounts', { fields: 'id,username' });
+    if (r.data?.length) return r.data.find((c) => /odisse/i.test(c.username || '')) || r.data[0];
+    tentativas.push('contas atribuídas: nenhuma');
+  } catch (e) { if (e.codigo === 'token') throw e; tentativas.push('contas atribuídas: ' + e.message); }
+  // 2. permissões concedidas ao token (debug_token lista a conta autorizada)
+  const app = await env.UNIVERSO.get('ig:app', 'json');
+  if (app?.appId && app?.segredo) {
+    try {
+      const r = await cliente('', API_FB).get('/debug_token', { input_token: token, access_token: `${app.appId}|${app.segredo}` });
+      const ids = new Set();
+      for (const g of r.data?.granular_scopes || []) if (/^instagram_/.test(g.scope)) for (const t of g.target_ids || []) ids.add(t);
+      for (const id of ids) {
+        try { const c = await fb.get(`/${id}`, { fields: 'id,username' }); if (c.username) return { ...c, id }; } catch { /* não é conta do Instagram */ }
+      }
+      tentativas.push('permissões do token: nenhuma conta');
+    } catch (e) { tentativas.push('permissões do token: ' + e.message); }
+  }
+  // 3. conta ligada a uma Página do Facebook
+  try {
+    const r = await fb.get('/me/accounts', { fields: 'instagram_business_account{id,username}' });
+    const c = (r.data || []).map((p) => p.instagram_business_account).find(Boolean);
+    if (c) return c;
+    tentativas.push('páginas: nenhuma conta');
+  } catch (e) { tentativas.push('páginas: ' + e.message); }
+  throw new ErroIG(`Não encontrei a conta do Instagram por este token (${tentativas.join('; ')}). Informe o ID da conta do Instagram no campo opcional — ele aparece no portfólio empresarial, em Contas → Contas do Instagram.`, 'conta');
+}
+
+async function guardarUnificado(env, token, expiraEm, igIdDado) {
+  const conta = await acharConta(env, token, igIdDado);
+  // confere o acesso à conta antes de guardar
+  const perfil = await cliente(token, API_FB).get(`/${conta.id}`, { fields: 'id,username' });
   const agora = Date.now();
   await env.UNIVERSO.put('ig:token', JSON.stringify({
-    modo: 'unificado', token, igId: conta.id, usuario: conta.username, criado: agora, renovado: agora,
+    modo: 'unificado', token, igId: perfil.id || conta.id, usuario: perfil.username || conta.username, criado: agora, renovado: agora,
     expira: expiraEm ? agora + expiraEm * 1000 : null,
   }));
 }
@@ -105,13 +139,14 @@ async function assinar(env, texto) {
 }
 
 /** Guarda os dados do app e devolve o endereço de login. */
-export async function iniciarLogin(env, { appId, segredo, config, volta } = {}) {
+export async function iniciarLogin(env, { appId, segredo, config, volta, igId } = {}) {
   const ant = (await env.UNIVERSO.get('ig:app', 'json')) || {};
   const app = {
     appId: String(appId || ant.appId || '').trim(),
     segredo: String(segredo || ant.segredo || '').trim(),
     config: String(config || ant.config || '').trim(),
     volta: VOLTAS.some((r) => r.test(volta || '')) ? volta : ant.volta || 'https://marketing.odisse.com.br/',
+    igId: /^\d{5,32}$/.test(String(igId || '').trim()) ? String(igId).trim() : '',
   };
   if (!/^\d{5,32}$/.test(app.appId)) throw new ErroIG('ID do app inválido (só números).', 'app');
   if (!/^\d{5,32}$/.test(app.config)) throw new ErroIG('ID da configuração inválido (só números).', 'app');
@@ -147,7 +182,7 @@ export async function retornoLogin(env, params) {
       client_id: app.appId, client_secret: app.segredo, redirect_uri: RETORNO, code,
     });
     if (!r.access_token) return falhar('O Meta não devolveu o token.');
-    await guardarUnificado(env, r.access_token, r.expires_in);
+    await guardarUnificado(env, r.access_token, r.expires_in, app.igId);
     const res = await coletar(env, { inicial: true });
     if (!res.ok) return falhar(res.erro);
     return Response.redirect(volta, 302);
@@ -169,7 +204,7 @@ export async function estado(env) {
 
 async function appPublico(env) {
   const app = await env.UNIVERSO.get('ig:app', 'json');
-  return app ? { appId: app.appId, config: app.config, temSegredo: !!app.segredo } : null;
+  return app ? { appId: app.appId, config: app.config, igId: app.igId || '', temSegredo: !!app.segredo } : null;
 }
 
 // ---------------------------------------------------------------------------

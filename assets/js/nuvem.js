@@ -87,7 +87,7 @@ async function reqIG(caminho, metodo = 'GET', corpo) {
   return dados;
 }
 export const igMetricas = () => reqIG('/api/instagram/metricas');
-export const igConectar = (token) => reqIG('/api/instagram/conectar', 'POST', { token });
+export const igConectar = (token, igId) => reqIG('/api/instagram/conectar', 'POST', { token, igId });
 export const igLogin = (dados) => reqIG('/api/instagram/login', 'POST', dados);
 export const igDesconectar = () => reqIG('/api/instagram/conectar', 'DELETE');
 export const igColetar = () => reqIG('/api/instagram/coletar', 'POST');

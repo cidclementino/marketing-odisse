@@ -606,3 +606,5 @@ body:not(.vista-metricas) .metricas { display: none; }
 .met-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .met-alt { margin-top: 18px; font-size: 13px; }
 .met-alt summary { cursor: pointer; color: var(--ardosia-2); margin-bottom: 10px; }
+.met-form .campo i { font-style: normal; font-weight: 400; color: var(--ardosia-2); }
+.met-form .campo small { line-height: 1.4; }
