@@ -88,6 +88,7 @@ async function reqIG(caminho, metodo = 'GET', corpo) {
 }
 export const igMetricas = () => reqIG('/api/instagram/metricas');
 export const igConectar = (token) => reqIG('/api/instagram/conectar', 'POST', { token });
+export const igLogin = (dados) => reqIG('/api/instagram/login', 'POST', dados);
 export const igDesconectar = () => reqIG('/api/instagram/conectar', 'DELETE');
 export const igColetar = () => reqIG('/api/instagram/coletar', 'POST');
 export const igVincular = (mediaId, pub) => reqIG(`/api/instagram/vinculos/${mediaId}`, 'PUT', { pub });

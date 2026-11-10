@@ -602,3 +602,7 @@ body:not(.vista-metricas) .metricas { display: none; }
 .met-form button:disabled { opacity: .6; cursor: default; }
 .met-msg { font-size: 12.5px; color: var(--ardosia-2); margin: 10px 0 0; min-height: 1em; }
 .met-msg.erro { color: var(--perigo); }
+.met-url { display: block; margin: 6px 0 2px; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--nevoa); border-radius: 6px; padding: 7px 9px; user-select: all; word-break: break-all; }
+.met-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.met-alt { margin-top: 18px; font-size: 13px; }
+.met-alt summary { cursor: pointer; color: var(--ardosia-2); margin-bottom: 10px; }

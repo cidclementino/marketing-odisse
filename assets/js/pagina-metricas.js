@@ -92,23 +92,38 @@ function desenhar() {
 // ---------------------------------------------------------------------------
 // Conexão
 
+const RETORNO = 'https://universo-odisse.reservaprojectbasework.workers.dev/api/instagram/retorno';
+
 function telaConexao(est) {
+  const app = est.app || {};
   return `
     <section class="met-conectar">
       <h1>Métricas</h1>
       <p class="met-lead">Conecte a conta do Odisse no Instagram. Depois disso, o Universo busca os números todo dia, às 6h, e guarda o histórico (o Instagram só mantém 90 dias).</p>
       ${est.erro ? `<p class="met-erro">${esc(est.erro)}</p>` : ''}
       <ol class="met-passos">
-        <li>Em <b>developers.facebook.com</b>, entre com a conta do Facebook ligada ao Instagram do Odisse e crie um app (<i>Meus apps → Criar app</i>, caso de uso <i>Outro</i>, tipo <i>Empresa</i>).</li>
-        <li>No app, adicione o produto <b>Instagram</b> e abra <i>API com login do Instagram → Gerar tokens de acesso</i>.</li>
-        <li>Adicione a conta <b>@odisse</b> (se pedir, aceite o convite de testador no Instagram, em <i>Configurações → Apps e sites</i>) e clique em <b>Gerar token</b>.</li>
-        <li>Copie o token e cole abaixo. Ele vale 60 dias e o Universo o renova sozinho toda semana.</li>
+        <li>No app do Meta (<b>developers.facebook.com</b>), caso de uso <i>Gerenciar mensagens e conteúdo no Instagram</i>, em <i>Permissões e recursos</i>, adicione <b>instagram_basic</b> e <b>instagram_manage_insights</b>.</li>
+        <li>Em <i>API setup with Unified login → Criar nova configuração</i>: token de <b>usuário do sistema</b>, expiração <b>Nunca</b>, ativo <b>conta do Instagram</b>, permissões <b>instagram_basic</b> e <b>instagram_manage_insights</b>.</li>
+        <li>Registre este URL de redirecionamento e salve:<code class="met-url">${RETORNO}</code></li>
+        <li>Preencha abaixo o ID do app e a chave secreta (<i>Configurações do app → Básico</i>) e o ID da configuração. A chave fica guardada só no servidor.</li>
       </ol>
-      <form class="met-form" id="metForm">
-        <label class="campo"><span>Token de acesso do Instagram</span><input type="password" id="metToken" autocomplete="off" placeholder="IGAA…" required></label>
-        <button type="submit" id="metConectar">Conectar e coletar</button>
+      <form class="met-form" id="metLogin">
+        <div class="met-campos">
+          <label class="campo"><span>ID do app</span><input type="text" id="metApp" inputmode="numeric" value="${esc(app.appId || '')}" required></label>
+          <label class="campo"><span>ID da configuração</span><input type="text" id="metConfig" inputmode="numeric" value="${esc(app.config || '')}" required></label>
+        </div>
+        <label class="campo"><span>Chave secreta do app</span><input type="password" id="metSegredo" autocomplete="off" placeholder="${app.temSegredo ? 'já guardada — deixe em branco para manter' : ''}" ${app.temSegredo ? '' : 'required'}></label>
+        <button type="submit" id="metEntrar">Entrar com o Instagram</button>
         <p class="met-msg" id="metMsg" role="status"></p>
       </form>
+      <details class="met-alt">
+        <summary>Já tenho um token de acesso</summary>
+        <form class="met-form" id="metForm">
+          <label class="campo"><span>Token (de usuário do sistema ou do login do Instagram)</span><input type="password" id="metToken" autocomplete="off" required></label>
+          <button type="submit" id="metConectar">Conectar e coletar</button>
+          <p class="met-msg" id="metMsgToken" role="status"></p>
+        </form>
+      </details>
     </section>`;
 }
 
@@ -381,24 +396,43 @@ async function carregarMinis() {
 // ---------------------------------------------------------------------------
 // Eventos
 
-function msg(t, erro) {
-  const el = raiz.querySelector('#metMsg');
+function msg(t, erro, id = '#metMsg') {
+  const el = raiz.querySelector(id);
   if (el) { el.textContent = t; el.classList.toggle('erro', !!erro); }
 }
 
 function ligar() {
   raiz.dataset.ligado = '1';
   raiz.addEventListener('submit', async (e) => {
+    if (e.target.id === 'metLogin') {
+      e.preventDefault();
+      const bt = raiz.querySelector('#metEntrar');
+      bt.disabled = true;
+      msg('Abrindo o login do Meta…');
+      try {
+        const { url } = await nuvem.igLogin({
+          appId: raiz.querySelector('#metApp').value,
+          config: raiz.querySelector('#metConfig').value,
+          segredo: raiz.querySelector('#metSegredo').value,
+          volta: location.origin + location.pathname,
+        });
+        location.href = url;
+      } catch (err) {
+        msg(err.message, true);
+        bt.disabled = false;
+      }
+      return;
+    }
     if (e.target.id !== 'metForm') return;
     e.preventDefault();
     const bt = raiz.querySelector('#metConectar');
     bt.disabled = true;
-    msg('Conectando e buscando os primeiros números… pode levar alguns segundos.');
+    msg('Conectando e buscando os primeiros números… pode levar alguns segundos.', false, '#metMsgToken');
     try {
       await nuvem.igConectar(raiz.querySelector('#metToken').value);
       await carregar();
     } catch (err) {
-      msg(err.message, true);
+      msg(err.message, true, '#metMsgToken');
       bt.disabled = false;
     }
   });

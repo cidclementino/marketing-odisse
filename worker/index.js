@@ -20,6 +20,8 @@
 //   GET    /api/instagram/estado            -> conexão, perfil, última coleta
 //   POST   /api/instagram/conectar          -> { token } valida, guarda e faz a primeira coleta
 //   DELETE /api/instagram/conectar          -> esquece o token
+//   POST   /api/instagram/login             -> { appId, segredo, config, volta } guarda o app e devolve o endereço do login unificado
+//   GET    /api/instagram/retorno           -> retorno do login do Meta (sem senha; `state` assinado)
 //   POST   /api/instagram/coletar           -> coleta agora
 //   GET    /api/instagram/metricas          -> tudo para a página de métricas
 //   PUT    /api/instagram/vinculos/:media   -> { pub } liga o post a uma publicação (null = sem)
@@ -90,6 +92,8 @@ export default {
     const url = new URL(request.url);
     const partes = url.pathname.replace(/\/+$/, '').split('/').filter(Boolean); // ['api', 'publicacoes', id?]
     if (partes[0] !== 'api') return erro('rota não encontrada', 404);
+    // retorno do login unificado do Meta: vem do navegador, sem senha; protegido pelo `state` assinado
+    if (partes[1] === 'instagram' && partes[2] === 'retorno' && request.method === 'GET') return ig.retornoLogin(env, url.searchParams);
     if (!autorizado(request, env)) return erro('não autorizado', 401);
     const kv = env.UNIVERSO;
     if (partes[1] === 'instagram') return instagram(request, env, partes.slice(2));
@@ -169,6 +173,11 @@ async function instagram(request, env, [acao, id]) {
       const r = await ig.conectar(env, corpo?.token);
       return r.ok ? json(r) : erro(r.erro, 502);
     }
+    if (acao === 'login' && m === 'POST') {
+      let corpo;
+      try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+      return json(await ig.iniciarLogin(env, corpo));
+    }
     if (acao === 'conectar' && m === 'DELETE') { await ig.desconectar(env); return json({ ok: true }); }
     if (acao === 'vinculos' && id && /^\d{5,32}$/.test(id) && m === 'PUT') {
       let corpo;
@@ -183,7 +192,7 @@ async function instagram(request, env, [acao, id]) {
       return new Response(value, { headers: { 'Content-Type': metadata?.tipo || 'image/jpeg', 'Cache-Control': 'private, max-age=31536000, immutable', ...CORS } });
     }
   } catch (e) {
-    return erro(e.message || 'erro no Instagram', e.codigo === 'token' || e.codigo === 'conta' ? 400 : 502);
+    return erro(e.message || 'erro no Instagram', ['token', 'conta', 'app'].includes(e.codigo) ? 400 : 502);
   }
   return erro('rota não encontrada', 404);
 }

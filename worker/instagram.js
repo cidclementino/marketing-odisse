@@ -1,7 +1,8 @@
 // Universo — métricas do Instagram (API do Instagram com login do Instagram).
 //
 // Chaves no KV `UNIVERSO`:
-//   ig:token     -> { token, usuarioId, criado, renovado, expira }   (nunca sai pela API)
+//   ig:token     -> { modo: 'unificado'|'instagram', token, igId, criado, renovado, expira }   (nunca sai pela API)
+//   ig:app       -> { appId, segredo, config, volta }   (login unificado; o segredo nunca sai pela API)
 //   ig:estado    -> { usuario, nome, foto, seguidores, seguindo, nposts, ultimaColeta, erro }
 //   ig:dias      -> { 'AAAA-MM-DD': { alcance, views, contas, interacoes, curtidas, comentarios,
 //                                    salvos, compart, toques, novos, seguidores } }
@@ -11,7 +12,11 @@
 //
 // A coleta roda todo dia pelo cron (wrangler.toml) e também pelo botão "Atualizar agora".
 
-const API = 'https://graph.instagram.com/v24.0';
+const API_IG = 'https://graph.instagram.com/v24.0'; // login do Instagram (token IGAA…, apps antigos)
+const API_FB = 'https://graph.facebook.com/v24.0';  // login unificado (token de usuário do sistema, apps novos)
+const DIALOGO = 'https://www.facebook.com/v24.0/dialog/oauth';
+export const RETORNO = 'https://universo-odisse.reservaprojectbasework.workers.dev/api/instagram/retorno';
+const VOLTAS = [/^https:\/\/marketing\.odisse\.com\.br\//, /^http:\/\/localhost(:\d+)?\//];
 const DIA_MS = 86400000;
 const FUSO_MS = -3 * 3600000; // Brasília, sem horário de verão
 const HIST_DIAS = 90;          // histórico diário de cada post nos primeiros 90 dias
@@ -32,13 +37,13 @@ class ErroIG extends Error {
   constructor(msg, codigo) { super(msg); this.codigo = codigo; }
 }
 
-function cliente(token) {
+function cliente(token, base = API_IG) {
   let chamadas = 0;
   async function get(caminho, params = {}) {
     if (++chamadas > LIMITE_CHAMADAS) throw new ErroIG('limite de chamadas desta execução', 'limite');
-    const url = caminho.startsWith('http') ? new URL(caminho) : new URL(API + caminho);
+    const url = caminho.startsWith('http') ? new URL(caminho) : new URL(base + caminho);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    if (!url.searchParams.has('access_token')) url.searchParams.set('access_token', token);
+    if (token && !url.searchParams.has('access_token')) url.searchParams.set('access_token', token);
     const res = await fetch(url.toString());
     const corpo = await res.json().catch(() => ({}));
     if (!res.ok || corpo.error) {
@@ -55,19 +60,100 @@ const valorDe = (item) => item?.total_value?.value ?? item?.values?.[0]?.value ?
 // ---------------------------------------------------------------------------
 // Conexão
 
+/** Cliente e caminho da conta conforme o tipo de token. */
+const acesso = (tk) => (tk.modo === 'unificado'
+  ? { ig: cliente(tk.token, API_FB), raiz: `/${tk.igId}` }
+  : { ig: cliente(tk.token, API_IG), raiz: '/me' });
+
+/** Conecta com um token colado (IGAA… do login do Instagram ou EAA… de usuário do sistema). */
 export async function conectar(env, token) {
   token = String(token || '').trim();
   if (token.length < 20) throw new ErroIG('Token inválido.', 'token');
-  const ig = cliente(token);
-  const eu = await ig.get('/me', { fields: 'user_id,username,account_type' });
-  if (eu.account_type && !/BUSINESS|MEDIA_CREATOR|CREATOR/i.test(eu.account_type)) {
-    throw new ErroIG('A conta precisa ser profissional (empresa ou criador).', 'conta');
+  if (/^IG/.test(token)) {
+    const eu = await cliente(token, API_IG).get('/me', { fields: 'user_id,username,account_type' });
+    if (eu.account_type && !/BUSINESS|MEDIA_CREATOR|CREATOR/i.test(eu.account_type)) {
+      throw new ErroIG('A conta precisa ser profissional (empresa ou criador).', 'conta');
+    }
+    const agora = Date.now();
+    await env.UNIVERSO.put('ig:token', JSON.stringify({
+      modo: 'instagram', token, igId: eu.user_id || eu.id, criado: agora, renovado: agora, expira: agora + 60 * DIA_MS,
+    }));
+  } else {
+    await guardarUnificado(env, token);
   }
+  return coletar(env, { inicial: true });
+}
+
+async function guardarUnificado(env, token, expiraEm) {
+  const r = await cliente(token, API_FB).get('/me/assigned_instagram_accounts', { fields: 'id,username' });
+  const contas = r.data || [];
+  if (!contas.length) throw new ErroIG('O token não tem nenhuma conta do Instagram atribuída. Na configuração do login unificado, inclua a conta do Instagram como ativo.', 'conta');
+  const conta = contas.find((c) => /odisse/i.test(c.username || '')) || contas[0];
   const agora = Date.now();
   await env.UNIVERSO.put('ig:token', JSON.stringify({
-    token, usuarioId: eu.user_id || eu.id, criado: agora, renovado: agora, expira: agora + 60 * DIA_MS,
+    modo: 'unificado', token, igId: conta.id, usuario: conta.username, criado: agora, renovado: agora,
+    expira: expiraEm ? agora + expiraEm * 1000 : null,
   }));
-  return coletar(env, { inicial: true });
+}
+
+// ---- Login unificado (Facebook Login for Business com configuração de token de sistema)
+
+async function assinar(env, texto) {
+  const chave = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.UNIVERSO_SENHA || ''), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', chave, new TextEncoder().encode(texto));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Guarda os dados do app e devolve o endereço de login. */
+export async function iniciarLogin(env, { appId, segredo, config, volta } = {}) {
+  const ant = (await env.UNIVERSO.get('ig:app', 'json')) || {};
+  const app = {
+    appId: String(appId || ant.appId || '').trim(),
+    segredo: String(segredo || ant.segredo || '').trim(),
+    config: String(config || ant.config || '').trim(),
+    volta: VOLTAS.some((r) => r.test(volta || '')) ? volta : ant.volta || 'https://marketing.odisse.com.br/',
+  };
+  if (!/^\d{5,32}$/.test(app.appId)) throw new ErroIG('ID do app inválido (só números).', 'app');
+  if (!/^\d{5,32}$/.test(app.config)) throw new ErroIG('ID da configuração inválido (só números).', 'app');
+  if (app.segredo.length < 16) throw new ErroIG('Falta a chave secreta do app.', 'app');
+  await env.UNIVERSO.put('ig:app', JSON.stringify(app));
+  const ts = String(Date.now());
+  const url = new URL(DIALOGO);
+  url.searchParams.set('client_id', app.appId);
+  url.searchParams.set('config_id', app.config);
+  url.searchParams.set('redirect_uri', RETORNO);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('override_default_response_type', 'true');
+  url.searchParams.set('state', `${ts}.${await assinar(env, ts)}`);
+  return { url: url.toString() };
+}
+
+/** Retorno do login: troca o código pelo token e volta para o Universo. */
+export async function retornoLogin(env, params) {
+  const app = (await env.UNIVERSO.get('ig:app', 'json')) || {};
+  const volta = (app.volta || 'https://marketing.odisse.com.br/') + '#/metricas';
+  const falhar = async (msg) => {
+    const est = (await env.UNIVERSO.get('ig:estado', 'json')) || {};
+    await env.UNIVERSO.put('ig:estado', JSON.stringify({ ...est, erro: msg }));
+    return Response.redirect(volta, 302);
+  };
+  if (params.get('error')) return falhar(`Login cancelado ou recusado: ${params.get('error_description') || params.get('error')}`);
+  const [ts, sig] = String(params.get('state') || '').split('.');
+  if (!ts || sig !== (await assinar(env, ts)) || Date.now() - Number(ts) > 30 * 60000) return falhar('Login expirado. Tente de novo.');
+  const code = params.get('code');
+  if (!code) return falhar('O Meta não devolveu o código de acesso.');
+  try {
+    const r = await cliente('', API_FB).get('/oauth/access_token', {
+      client_id: app.appId, client_secret: app.segredo, redirect_uri: RETORNO, code,
+    });
+    if (!r.access_token) return falhar('O Meta não devolveu o token.');
+    await guardarUnificado(env, r.access_token, r.expires_in);
+    const res = await coletar(env, { inicial: true });
+    if (!res.ok) return falhar(res.erro);
+    return Response.redirect(volta, 302);
+  } catch (e) {
+    return falhar(e.message);
+  }
 }
 
 export async function desconectar(env) {
@@ -78,7 +164,12 @@ export async function desconectar(env) {
 
 export async function estado(env) {
   const [tk, est] = await Promise.all([env.UNIVERSO.get('ig:token', 'json'), env.UNIVERSO.get('ig:estado', 'json')]);
-  return { conectado: !!tk, expira: tk?.expira || null, ...(est || {}) };
+  return { conectado: !!tk, expira: tk?.expira || null, modo: tk?.modo || null, app: await appPublico(env), ...(est || {}) };
+}
+
+async function appPublico(env) {
+  const app = await env.UNIVERSO.get('ig:app', 'json');
+  return app ? { appId: app.appId, config: app.config, temSegredo: !!app.segredo } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +186,7 @@ export async function coletar(env, { inicial = false } = {}) {
 
   try {
     // 1. renova o token uma vez por semana (vale 60 dias; precisa ter mais de 24 h)
-    if (agora - tk.renovado > 7 * DIA_MS) {
+    if (tk.modo !== 'unificado' && agora - tk.renovado > 7 * DIA_MS) {
       try {
         const r = await cliente(tk.token).get('https://graph.instagram.com/refresh_access_token', { grant_type: 'ig_refresh_token' });
         if (r.access_token) {
@@ -107,10 +198,10 @@ export async function coletar(env, { inicial = false } = {}) {
         avisos.push('renovação do token: ' + e.message);
       }
     }
-    const ig = cliente(tk.token);
+    const { ig, raiz } = acesso(tk);
 
     // 2. perfil
-    const perfil = await ig.get('/me', { fields: 'username,name,profile_picture_url,followers_count,follows_count,media_count' });
+    const perfil = await ig.get(raiz, { fields: 'username,name,profile_picture_url,followers_count,follows_count,media_count' });
     Object.assign(est, {
       usuario: perfil.username, nome: perfil.name || '', foto: perfil.profile_picture_url || '',
       seguidores: perfil.followers_count ?? null, seguindo: perfil.follows_count ?? null, nposts: perfil.media_count ?? null,
@@ -119,14 +210,14 @@ export async function coletar(env, { inicial = false } = {}) {
     // 3. métricas diárias da conta (ontem e dias que faltarem na última semana)
     const dias = (await kv.get('ig:dias', 'json')) || {};
     dias[hoje] = { ...(dias[hoje] || {}), seguidores: perfil.followers_count ?? null };
-    if (inicial) await historicoInicial(ig, dias, agora).catch((e) => avisos.push('histórico: ' + e.message));
+    if (inicial) await historicoInicial(ig, raiz, dias, agora).catch((e) => avisos.push('histórico: ' + e.message));
     for (let i = 7; i >= 1; i--) {
       const d = diaLocal(agora - i * DIA_MS);
       if (dias[d]?.completo) continue;
       if (ig.restantes() < 20) break;
       try {
         // os números de ontem ainda mudam; só os de anteontem para trás ficam fechados
-        Object.assign((dias[d] = dias[d] || {}), await metricasDoDia(ig, d), { completo: i >= 2 });
+        Object.assign((dias[d] = dias[d] || {}), await metricasDoDia(ig, raiz, d), { completo: i >= 2 });
       } catch (e) {
         if (e.codigo === 'token') throw e;
         avisos.push(`conta ${d}: ${e.message}`);
@@ -136,7 +227,7 @@ export async function coletar(env, { inicial = false } = {}) {
 
     // 4. posts e métricas de cada um
     const posts = (await kv.get('ig:posts', 'json')) || {};
-    const lista = await listarPosts(ig, avisos);
+    const lista = await listarPosts(ig, raiz, avisos);
     for (const p of lista) {
       const ant = posts[p.id] || { hist: {} };
       const m = { ...(ant.m || {}), ...p.m };
@@ -168,7 +259,7 @@ export async function coletar(env, { inicial = false } = {}) {
     return { ok: true, avisos };
   } catch (e) {
     const msg = e.codigo === 'token'
-      ? 'O token do Instagram expirou ou foi revogado. Gere um novo e conecte de novo.'
+      ? 'O acesso ao Instagram expirou ou foi revogado. Entre com o Instagram de novo.'
       : e.message;
     Object.assign(est, { erro: msg, ultimaTentativa: agora, avisos });
     await kv.put('ig:estado', JSON.stringify(est));
@@ -176,18 +267,18 @@ export async function coletar(env, { inicial = false } = {}) {
   }
 }
 
-async function metricasDoDia(ig, dia) {
+async function metricasDoDia(ig, raiz, dia) {
   const params = { period: 'day', metric_type: 'total_value', since: inicioDia(dia), until: inicioDia(dia) + 86400 };
   const out = {};
   try {
-    const r = await ig.get('/me/insights', { ...params, metric: METRICAS_CONTA.join(',') });
+    const r = await ig.get(`${raiz}/insights`, { ...params, metric: METRICAS_CONTA.join(',') });
     for (const it of r.data || []) out[NOME_CONTA[it.name]] = valorDe(it);
   } catch (e) {
     if (e.codigo === 'token' || e.codigo === 'limite') throw e;
     // alguma métrica não é aceita: pede só as principais, uma a uma
     for (const met of ['reach', 'views', 'accounts_engaged', 'total_interactions']) {
       try {
-        const r = await ig.get('/me/insights', { ...params, metric: met });
+        const r = await ig.get(`${raiz}/insights`, { ...params, metric: met });
         out[NOME_CONTA[met]] = valorDe(r.data?.[0]);
       } catch (e2) { if (e2.codigo === 'token' || e2.codigo === 'limite') throw e2; }
     }
@@ -196,12 +287,12 @@ async function metricasDoDia(ig, dia) {
 }
 
 /** Na primeira conexão: alcance e novos seguidores dos últimos 30 dias (série diária). */
-async function historicoInicial(ig, dias, agora) {
+async function historicoInicial(ig, raiz, dias, agora) {
   const since = inicioDia(diaLocal(agora - 30 * DIA_MS));
   const until = inicioDia(diaLocal(agora));
   for (const [met, campo] of [['reach', 'alcance'], ['follower_count', 'novos']]) {
     try {
-      const r = await ig.get('/me/insights', { metric: met, period: 'day', since, until });
+      const r = await ig.get(`${raiz}/insights`, { metric: met, period: 'day', since, until });
       for (const v of r.data?.[0]?.values || []) {
         const d = diaLocal(Date.parse(v.end_time) - DIA_MS);
         dias[d] = dias[d] || {};
@@ -211,7 +302,7 @@ async function historicoInicial(ig, dias, agora) {
   }
 }
 
-async function listarPosts(ig, avisos) {
+async function listarPosts(ig, raiz, avisos) {
   const base = 'id,caption,media_type,media_product_type,permalink,timestamp,media_url,thumbnail_url,like_count,comments_count';
   const out = [];
   let comInsights = true;
@@ -222,7 +313,7 @@ async function listarPosts(ig, avisos) {
     try {
       r = prox
         ? await ig.get(prox)
-        : await ig.get('/me/media', { limit: 50, fields: comInsights ? `${base},insights.metric(${METRICAS_POST.join(',')})` : base });
+        : await ig.get(`${raiz}/media`, { limit: 50, fields: comInsights ? `${base},insights.metric(${METRICAS_POST.join(',')})` : base });
     } catch (e) {
       if (e.codigo === 'token' || pag > 0 || !comInsights) throw e;
       comInsights = false; // algum post não aceita as métricas em lote: lista sem elas e pede uma a uma
@@ -299,7 +390,7 @@ export async function metricas(env) {
     if (p) pubs[id] = { id, nucleo: p.nucleo, titulo: p.titulo || p.globais?.projeto || '', ncards: p.cards?.length || 0, capa: p.cards?.[0]?.modelo || '' };
   }));
   return {
-    estado: { conectado: !!tk, expira: tk?.expira || null, ...(est || {}) },
+    estado: { conectado: !!tk, expira: tk?.expira || null, modo: tk?.modo || null, app: await appPublico(env), ...(est || {}) },
     dias: dias || {},
     posts: Object.values(posts || {}).sort((a, b) => b.data.localeCompare(a.data)),
     vinculos: vinc || {},
