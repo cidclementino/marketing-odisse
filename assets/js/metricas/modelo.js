@@ -209,25 +209,37 @@ export function melhoresJanelas(mat, n = 3) {
   return picos.sort((a, b) => b.v - a.v).slice(0, n);
 }
 
-/** Resumo de um concorrente nos últimos `dias` (padrão 30). Métricas públicas apenas. */
+/**
+ * Resumo de um concorrente nos últimos `dias` (padrão 30). Métricas públicas apenas.
+ * Muitas contas escondem as curtidas: o engajamento público usa só os posts com curtidas
+ * visíveis (sem misturar com posts que só têm comentários); os comentários valem para todos.
+ */
 export function resumoConcorrente(c, dias = 30) {
   const corte = diaLocal(Date.now() - dias * DIA);
   const posts = (c.posts || []).filter((p) => p.dia >= corte);
   const seg = c.perfil?.seguidores || null;
-  const engPub = (p) => (seg && (p.curtidas != null || p.comentarios != null) ? ((p.curtidas || 0) + (p.comentarios || 0)) / seg : null);
+  const engPub = (p) => (seg && p.curtidas != null ? (p.curtidas + (p.comentarios || 0)) / seg : null);
   const ultimos = (c.posts || []).slice(0, 30);
-  const taxas = ultimos.map(engPub).filter(def).sort((a, b) => a - b);
-  const mediana = taxas.length ? taxas[Math.floor(taxas.length / 2)] : null;
+  const mediana = (arr) => { const v = arr.filter(def).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+  const visiveis = ultimos.filter((p) => p.curtidas != null);
+  const engMediana = visiveis.length >= 3 ? mediana(visiveis.map(engPub)) : null;
+  const comMediana = mediana(ultimos.map((p) => p.comentarios));
   const formatos = {};
   for (const p of ultimos) { const f = formatoIG(p); formatos[f] = (formatos[f] || 0) + 1; }
   const fotos = Object.keys(c.fotos || {}).sort();
   const desde = fotos.find((d) => d >= corte) || fotos[0];
   const ganho = fotos.length >= 2 && desde !== fotos.at(-1) ? c.fotos[fotos.at(-1)] - c.fotos[desde] : null;
+  /** Quanto um post superou a mediana da própria conta (curtidas+coment. se visíveis; senão comentários). */
+  const fator = (p) => {
+    if (p.curtidas != null && engMediana) return engPub(p) / engMediana;
+    if (p.comentarios != null && comMediana) return p.comentarios / comMediana;
+    return null;
+  };
   return {
     seguidores: seg, ganho, ganhoDesde: desde, postsPeriodo: posts.length, porSemana: posts.length / (dias / 7),
-    engMediana: mediana, engMedia: media(taxas), formatos, ultimos,
-    ultimo: c.posts?.[0]?.dia || null, curtidasOcultas: ultimos.length > 0 && ultimos.every((p) => p.curtidas == null),
-    engPub,
+    engMediana, comMediana, nVisiveis: visiveis.length, nUltimos: ultimos.length, formatos, ultimos,
+    ultimo: c.posts?.[0]?.dia || null, curtidasOcultas: ultimos.length > 0 && visiveis.length < 3,
+    engPub, fator,
   };
 }
 

@@ -354,7 +354,7 @@ export function concorrentes(N, c, L, ui) {
   const linhaOd = `<tr class="odisse">
     <td><span class="met-avatar" ${est.foto ? `style="background-image:url('${esc(est.foto)}')"` : ''}></span><b>@${esc(est.usuario || 'odisse')}</b><small class="met-sub">Odisse</small></td>
     <td class="num">${n(est.seguidores)}</td><td class="num">${sinal(ganhoSeguidores(N, { ...c, inicio: corteOd, dias: { instagram: [] } }))}</td>
-    <td class="num">${dec(postsOd30.length / (30 / 7))}</td><td class="num">${pct(od.engMediana, 2)}</td>
+    <td class="num">${dec(postsOd30.length / (30 / 7))}</td><td class="num">${pct(od.engMediana, 2)}</td><td class="num">${n(od.comMediana)}</td>
     <td>${formatos(fmtOd, od.ultimos.length)}</td><td class="num">${postsOd30[0] ? dataCurta(postsOd30.sort((a, b) => b.dia.localeCompare(a.dia))[0].dia) : '—'}</td><td></td>
   </tr>`;
   const linhas = contas.map((x) => {
@@ -365,14 +365,15 @@ export function concorrentes(N, c, L, ui) {
       <td class="num">${n(r.seguidores)}</td>
       <td class="num">${r.ganho == null ? `<small class="met-sub in" title="A variação aparece depois de alguns dias acompanhando a conta">desde ${dataCurta(x.desde ? diaLocal(x.desde) : null)}</small>` : sinal(r.ganho)}</td>
       <td class="num">${dec(r.porSemana)}</td>
-      <td class="num">${r.curtidasOcultas ? '<small class="met-sub in">curtidas ocultas</small>' : pct(r.engMediana, 2)}</td>
+      <td class="num">${r.curtidasOcultas ? '<small class="met-sub in" title="A conta esconde as curtidas: compare pelos comentários">curtidas ocultas</small>' : `${pct(r.engMediana, 2)}${r.nVisiveis < r.nUltimos ? `<small class="met-sub" title="A conta esconde as curtidas nos demais posts">${r.nVisiveis} de ${r.nUltimos} posts</small>` : ''}`}</td>
+      <td class="num">${n(r.comMediana)}</td>
       <td>${formatos(r.formatos, r.ultimos.length)}</td>
       <td class="num">${dataCurta(r.ultimo)}</td>
       <td class="acoes"><button class="bt-link" data-conc-atualizar="${esc(x.usuario)}" title="Buscar os números agora">atualizar</button><button class="bt-link perigo" data-conc-remover="${esc(x.usuario)}">remover</button></td>
     </tr>`;
   }).join('');
   const tabela = `<div class="tabela-wrap"><table class="tab-texto met-tab met-conc">
-    <thead><tr><th>Conta</th><th class="d">Seguidores</th><th class="d">Variação 30 dias</th><th class="d">Posts / semana</th><th class="d">Engaj. público</th><th>Formatos</th><th class="d">Último post</th><th></th></tr></thead>
+    <thead><tr><th>Conta</th><th class="d">Seguidores</th><th class="d">Variação 30 dias</th><th class="d">Posts / semana</th><th class="d">Engaj. público</th><th class="d">Coment. / post</th><th>Formatos</th><th class="d">Último post</th><th></th></tr></thead>
     <tbody>${linhaOd}${linhas || ''}</tbody></table></div>
     ${contas.length ? '' : '<p class="met-vazio">Adicione até ' + max + ' contas profissionais pelo @.</p>'}`;
 
@@ -380,11 +381,10 @@ export function concorrentes(N, c, L, ui) {
   const fora = [];
   for (const x of contas) {
     const r = resumoConcorrente(x);
-    if (!r.engMediana) continue;
     for (const p of x.posts) {
       if (p.dia < c.inicio) continue;
-      const e = r.engPub(p);
-      if (e != null && e / r.engMediana >= 1.3) fora.push({ x, p, e, f: e / r.engMediana });
+      const f = r.fator(p);
+      if (f != null && f >= 1.3) fora.push({ x, p, f });
     }
   }
   fora.sort((a, b) => b.f - a.f);
@@ -400,8 +400,8 @@ export function concorrentes(N, c, L, ui) {
   return {
     html: `
       ${blocoLeituras(L, 'concorrentes')}
-      ${bloco('Contas acompanhadas', form + tabela, { dica: 'Só dados públicos de contas profissionais: seguidores e, de cada post, curtidas, comentários e visualizações (vídeos). Alcance e salvamentos de outras contas não existem na API. Engajamento público = mediana de (curtidas + comentários) ÷ seguidores nos últimos 30 posts — a mesma conta é feita para o Odisse. Coleta diária às 6h; a variação de seguidores começa a contar do dia em que a conta entra na lista.' })}
-      ${bloco('Posts que se destacaram', destaques, { dica: 'Posts dos concorrentes no período que superaram em 30% ou mais a mediana de engajamento público da própria conta, do maior para o menor.' })}`,
+      ${bloco('Contas acompanhadas', form + tabela, { dica: 'Só dados públicos de contas profissionais: seguidores e, de cada post, curtidas, comentários e visualizações (vídeos). Alcance e salvamentos de outras contas não existem na API. Engajamento público = mediana de (curtidas + comentários) ÷ seguidores nos últimos 30 posts, só entre os posts com curtidas visíveis (muitas contas escondem as curtidas; nesse caso, compare pelos comentários por post). A mesma conta é feita para o Odisse. Coleta diária às 6h; a variação de seguidores começa a contar do dia em que a conta entra na lista.' })}
+      ${bloco('Posts que se destacaram', destaques, { dica: 'Posts dos concorrentes no período que superaram em 30% ou mais a mediana da própria conta, do maior para o menor. Com curtidas visíveis, compara curtidas + comentários; com curtidas ocultas, só os comentários.' })}`,
     depois() {},
   };
 }

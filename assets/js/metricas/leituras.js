@@ -134,7 +134,7 @@ export function gerarLeituras(N, c) {
   const contas = (N.concorrentes.contas || []).filter((x) => x.perfil);
   if (contas.length) {
     const odisse = resumoOdissePublico(N, est);
-    const rs = contas.map((x) => ({ x, r: resumoConcorrente(x) })).filter((y) => y.r.engMediana != null);
+    const rs = contas.map((x) => ({ x, r: resumoConcorrente(x) })).filter((y) => y.r.engMediana != null && y.r.nVisiveis >= 10);
     if (rs.length) {
       const melhor = rs.sort((a, b) => b.r.engMediana - a.r.engMediana)[0];
       const comp = odisse.engMediana != null ? ` O Odisse está em ${pct(odisse.engMediana, 2)}.` : '';
@@ -142,9 +142,12 @@ export function gerarLeituras(N, c) {
     }
     const semana = diaLocal(Date.now() - 8 * DIA);
     const destaques = [];
-    for (const { x, r } of rs) for (const p of x.posts.filter((q) => q.dia >= semana)) {
-      const e = r.engPub(p);
-      if (e != null && r.engMediana && e / r.engMediana >= 2) destaques.push({ x, p, f: e / r.engMediana });
+    for (const x of contas) {
+      const r = resumoConcorrente(x);
+      for (const p of x.posts.filter((q) => q.dia >= semana)) {
+        const f = r.fator(p);
+        if (f != null && f >= 2) destaques.push({ x, p, f });
+      }
     }
     destaques.sort((a, b) => b.f - a.f);
     if (destaques[0]) {
@@ -167,7 +170,8 @@ export function resumoOdissePublico(N, est) {
   const seg = est?.seguidores;
   const ultimos = [...N.posts].filter((p) => p.rede === 'instagram').sort((a, b) => b.data.localeCompare(a.data)).slice(0, 30);
   const taxas = ultimos.map((p) => (seg && p.m.curtidas != null ? ((p.m.curtidas || 0) + (p.m.comentarios || 0)) / seg : null)).filter(def).sort((a, b) => a - b);
-  return { engMediana: taxas.length ? taxas[Math.floor(taxas.length / 2)] : null, ultimos };
+  const coms = ultimos.map((p) => p.m.comentarios).filter(def).sort((a, b) => a - b);
+  return { engMediana: taxas.length ? taxas[Math.floor(taxas.length / 2)] : null, comMediana: coms.length ? coms[Math.floor(coms.length / 2)] : null, ultimos };
 }
 
 const trecho = (t) => { const s = String(t || 'sem legenda').split('\n')[0]; return s.length > 60 ? s.slice(0, 58) + '…' : s; };
