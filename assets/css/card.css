@@ -62,6 +62,13 @@
 /* Pontos laterais — 3 de cada lado (cor calculada em colorirPontos) */
 .card .ponto { position: absolute; border-radius: 50%; z-index: 4; pointer-events: none; background: #3F4B57; }
 
+/* Contagem (ou site, no último card) — canto inferior direito, centrada na altura do selo */
+.card .contagem {
+  position: absolute; z-index: 4; white-space: nowrap; line-height: 24px;
+  display: flex; align-items: center; gap: var(--e-proximo);
+}
+.card .contagem .seta { display: block; }
+
 /* Selo — rodapé central, faixa y 1340–1408 */
 .card .selo { left: 0; right: 0; display: flex; justify-content: center; z-index: 3; }
 .card .mark { display: block; }

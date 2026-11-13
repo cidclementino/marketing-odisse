@@ -34,6 +34,27 @@ const prefs = (() => {
 })();
 
 // ---------------------------------------------------------------------------
+// Guias de composição (só no editor; não entram na exportação)
+
+const GUIAS_SVG = `<svg class="guias" viewBox="0 0 1080 1440" preserveAspectRatio="none" aria-hidden="true">
+  <g class="g-diagonais"><path d="M0 0L1080 1440M1080 0L0 1440"/></g>
+  <g class="g-tercos"><path d="M360 0V1440M720 0V1440M0 480H1080M0 960H1080"/></g>
+  <g class="g-quadrado"><path class="veu-q" d="M0 0H1080V180H0ZM0 1260H1080V1440H0Z"/><rect x="0" y="180" width="1080" height="1080"/></g>
+</svg>`;
+const GUIAS = [
+  ['diagonais', 'Diagonais', 'Diagonais do card, de canto a canto'],
+  ['tercos', 'Terços', 'Regra dos terços (360 / 720 px na horizontal, 480 / 960 px na vertical)'],
+  ['quadrado', '1080×1080', 'Recorte quadrado do grid do perfil (y 180 a 1260)'],
+];
+
+function renderGuias() {
+  const ativas = prefs.get('guias', []);
+  $('#guias').innerHTML = GUIAS.map(([id, rot, dica]) =>
+    `<button class="${ativas.includes(id) ? 'ativo' : ''}" data-guia="${id}" title="${dica}" aria-pressed="${ativas.includes(id)}">${rot}</button>`).join('');
+  GUIAS.forEach(([id]) => $('#palco').classList.toggle(`com-${id}`, ativas.includes(id)));
+}
+
+// ---------------------------------------------------------------------------
 // Estado
 
 let pub = null;          // publicação aberta no editor
@@ -365,15 +386,15 @@ function renderEditor() {
 
 const CAMPOS_GLOBAIS = [
   { grupo: 'Publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
-    { k: 'projeto', rot: 'Projeto, série ou autoria', dica: 'Cabeçalho à direita, antes do contador. Também nomeia os arquivos.' },
+    { k: 'projeto', rot: 'Nome da publicação', dica: 'Cabeçalho à direita (no Elaia, depois de "Escrito por"). Também nomeia os arquivos.' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
-    { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)' },
+    { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)', dica: 'Canto inferior direito, com seta para o próximo card. No último card aparece o site.' },
     { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
   ] },
   { grupo: 'Fechamento e contatos', dica: 'Aparecem no card de fechamento. Valem para toda a publicação.', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
     { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
-    { k: 'site', rot: 'Site' },
+    { k: 'site', rot: 'Site', dica: 'Também aparece no canto inferior direito do último card.' },
     { k: 'telefone', rot: 'Telefone' },
     { k: 'email', rot: 'E-mail' },
   ] },
@@ -402,7 +423,9 @@ function renderGlobais() {
   };
   const [pubGrp, fechGrp] = CAMPOS_GLOBAIS;
   $('#globaisPub').innerHTML = grupo(pubGrp);
-  $('#globaisFech').innerHTML = temFechamento ? grupo(fechGrp) : '';
+  $('#globaisFech').innerHTML = temFechamento
+    ? grupo(fechGrp)
+    : grupo({ grupo: 'Site', dica: 'Aparece no canto inferior direito do último card.', campos: fechGrp.campos.filter((c) => c.k === 'site') });
   $('#registro').innerHTML = `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
     <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
     <dl>
@@ -574,7 +597,7 @@ function renderTrilho() {
       <span class="num">${String(i + 1).padStart(2, '0')} · ${modeloDe(pub.nucleo, c.modelo)?.nome || ''}</span>
       <div class="moldura" style="--k:${kk}"><div class="card editar">${renderCard({
         card: c, indice: i, total: pub.cards.length, nucleo: n, globais: pub.globais, modo: 'editar', fonteImagem,
-      })}</div></div>
+      })}</div>${GUIAS_SVG}</div>
     </div>`;
   }
   h += `<button class="mais" id="btMais" title="Adicionar card ${modo === 'todos' ? 'no fim' : 'depois deste'}">+</button>`;
@@ -927,6 +950,15 @@ function ligarEventos() {
   });
 
   // Barra
+  renderGuias();
+  $('#guias').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-guia]');
+    if (!b) return;
+    const ativas = new Set(prefs.get('guias', []));
+    ativas.has(b.dataset.guia) ? ativas.delete(b.dataset.guia) : ativas.add(b.dataset.guia);
+    prefs.set('guias', [...ativas]);
+    renderGuias();
+  });
   $('#modos').addEventListener('click', (e) => {
     const b = e.target.closest('[data-modo]');
     if (!b) return;

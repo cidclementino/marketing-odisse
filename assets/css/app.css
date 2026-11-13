@@ -745,3 +745,18 @@ body:not(.vista-metricas) .metricas { display: none; }
 .met-avisos { font-size: 12px; color: var(--ardosia-2); padding-left: 18px; }
 .met-bloco > .met-nota:first-of-type { margin: -4px 0 16px; }
 .met-tab td.dt a { color: inherit; }
+
+/* Guias de composição — sobre o card no editor, ligadas pelos botões do canto inferior esquerdo */
+.guias-bt { justify-self: start; }
+.peca .moldura > .guias {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 5; overflow: visible;
+}
+.guias g { display: none; fill: none; stroke: rgba(220, 40, 120, .85); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.guias path, .guias rect { vector-effect: non-scaling-stroke; }
+.guias .g-tercos { stroke: rgba(40, 150, 220, .9); }
+.guias .g-quadrado { stroke: rgba(240, 170, 20, .95); stroke-dasharray: 6 4; }
+.guias .g-quadrado .veu-q { fill: rgba(20, 24, 28, .28); stroke: none; }
+.palco.com-diagonais .guias .g-diagonais,
+.palco.com-tercos .guias .g-tercos,
+.palco.com-quadrado .guias .g-quadrado { display: inline; }

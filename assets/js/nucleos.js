@@ -21,7 +21,7 @@ export const NUCLEOS = {
   estudio: {
     id: 'estudio',
     nome: 'Estúdio',
-    cabecalho: 'Odisse — Estúdio',
+    cabecalho: 'Odisse, Estúdio',
     marca: 'Odisse Estúdio',
     sigla: 'oe',
     conteudo: 'Pessoas, obras e bastidores',
@@ -36,7 +36,7 @@ export const NUCLEOS = {
   arquitetos: {
     id: 'arquitetos',
     nome: 'Arquitetos',
-    cabecalho: 'Odisse — Arquitetos',
+    cabecalho: 'Odisse Arquitetos',
     marca: 'Odisse Arquitetos',
     sigla: 'oa',
     conteudo: 'Projetos de arquitetura e interiores',
@@ -51,7 +51,7 @@ export const NUCLEOS = {
   objetos: {
     id: 'objetos',
     nome: 'Objetos',
-    cabecalho: 'Odisse — Objetos',
+    cabecalho: 'Odisse Objetos',
     marca: 'Odisse Objetos',
     sigla: 'oo',
     conteudo: 'Peças autorais e loja',
@@ -66,7 +66,8 @@ export const NUCLEOS = {
   elaia: {
     id: 'elaia',
     nome: 'Elaia',
-    cabecalho: 'Odisse — Elaia',
+    cabecalho: 'Odisse Elaia',
+    autoria: 'Escrito por', // texto fixo antes do nome da publicação, no cabeçalho à direita
     marca: 'Elaia',
     sigla: 'el',
     conteudo: 'Ensaios e podcast',

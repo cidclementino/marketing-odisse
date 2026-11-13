@@ -98,18 +98,34 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       return `<div class="bloco" style="${pos(x, ALT - h, w, h)}background:linear-gradient(${hexA(n.veu, 0)},${hexA(n.veu, a)})"></div>`;
     },
 
-    /** Cabeçalho: y 40. Esquerda "Odisse — Núcleo"; direita projeto + contador, ou o aviso do post único. */
+    /** Cabeçalho: y 38. Esquerda o núcleo ("Odisse Arquitetos"); direita o nome da publicação
+     *  (no Elaia, precedido de "Escrito por"), ou o aviso do post único. */
     cab(corEsq, corDir = corEsq) {
       let dir;
       if (unico) {
         dir = t.campo('aviso', 'cab-txt', '', { ph: 'Aviso' });
       } else {
-        const cont = g.contador ? `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}` : '';
-        const txt = [g.projeto, cont].filter(Boolean).join(' — ');
-        dir = editavel ? `<span data-global="projeto" title="Informação padrão — edite no painel à esquerda">${esc(txt)}</span>` : esc(txt);
+        const nome = g.projeto || '';
+        const pre = n.autoria && nome ? `${esc(n.autoria)} ` : '';
+        dir = pre + (editavel ? `<span data-global="projeto" title="Informação padrão — edite no painel à esquerda">${esc(nome)}</span>` : esc(nome));
       }
       return `<div class="cab t-rotulo" style="left:${M}px;color:${corEsq}">${esc(n.cabecalho)}</div>
         <div class="cab t-rotulo dir" style="right:${M}px;color:${corDir}">${dir}</div>`;
+    },
+
+    /** Canto inferior direito, na altura do selo: contagem com seta para o próximo card;
+     *  no último card, o site do núcleo. A cor vem de colorirPontos (pelo fundo). */
+    contagem() {
+      const ultimo = indice === total - 1;
+      let h = '';
+      if (ultimo) {
+        if (!g.site) return '';
+        h = editavel ? `<span data-global="site" title="Informação padrão — edite no painel à esquerda">${esc(g.site)}</span>` : esc(g.site);
+      } else {
+        if (!g.contador) return '';
+        h = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${SETA}`;
+      }
+      return `<div class="contagem t-rotulo" style="right:${M}px;top:${ALT - E.selo - 12}px">${h}</div>`;
     },
 
     /** Selo centrado no rodapé, com o centro a E.selo da base. Post único: mão. */
@@ -1110,11 +1126,14 @@ export function modeloDe(nucleoId, id) {
   return lista.find((m) => m.id === id) || lista[0];
 }
 
+/** Seta fina para a direita, na altura das maiúsculas do Rótulo. */
+const SETA = '<svg class="seta" viewBox="0 0 30 14" width="30" height="14" aria-hidden="true"><path d="M0 7H28M22 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+
 /** Renderiza o miolo de um card (1080 × 1440) como HTML. */
 export function renderCard(opc) {
   const modelo = modeloDe(opc.nucleo.id, opc.card.modelo);
   const t = criarContexto({ ...opc, modelo });
-  return modelo.render(t) + pontos();
+  return modelo.render(t) + t.contagem() + pontos();
 }
 
 /**
@@ -1151,6 +1170,9 @@ function corSob(card, x, y) {
 export function colorirPontos(card) {
   card.querySelectorAll(':scope > .ponto').forEach((p) => {
     p.style.background = corSob(card, p.offsetLeft + p.offsetWidth / 2, p.offsetTop + p.offsetHeight / 2);
+  });
+  card.querySelectorAll(':scope > .contagem').forEach((c) => {
+    c.style.color = corSob(card, c.offsetLeft + c.offsetWidth - 4, c.offsetTop + c.offsetHeight / 2);
   });
 }
 
