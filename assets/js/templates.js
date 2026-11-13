@@ -42,9 +42,15 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
   const g = globais;
   const editavel = modo === 'editar';
   const unico = !!modelo.unico;
+  const ops = opcoesDe(modelo, card, n);
+  const ex = resolverExemplo(modelo, n.id);
+  // legenda no canto superior direito: modelos do Estúdio marcados, ou a opção "No topo"
+  const legendaTopo = !!modelo.legendaTopo || ops.legenda === 'topo';
 
   const t = {
     n, g, editavel,
+    op: (k) => ops[k],
+    tem: (chave) => !!String(card.campos?.[chave] ?? '').replace(/<[^>]+>|&nbsp;|\s/g, ''),
 
     campo(chave, classe, estilo = '', opc = {}) {
       // O rótulo de contexto (ex.: "A VISTA") só existe em posts únicos e fechamentos.
@@ -56,7 +62,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         const est = TEXTO_POR_CLASSE[classe.split(' ').find((c) => TEXTO_POR_CLASSE[c])];
         fit = ` data-fit="${corpoMin(est)},${corpoMax(est)},${opc.fit}"`;
       }
-      const ph = esc(String(opc.ph ?? modelo.exemplo?.[chave] ?? '').replace(/<[^>]+>/g, ''));
+      const ph = esc(String(opc.ph ?? ex[chave] ?? '').replace(/<[^>]+>/g, ''));
       if (!editavel && !valor) return '';
       const attrs = editavel ? ` contenteditable="true" spellcheck="true" data-campo="${chave}" data-ph="${ph}"` : '';
       return `<div class="${classe}" style="${estilo}"${fit}${opc.attrs || ''}${attrs}>${valor}</div>`;
@@ -107,7 +113,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       let dir;
       if (unico) {
         dir = t.campo('aviso', 'cab-txt', '', { ph: 'Aviso' });
-      } else if (modelo.legendaTopo) {
+      } else if (legendaTopo) {
         // Estúdio: a legenda (rótulo + linha) ocupa o lugar do nome da publicação.
         const r = t.campo('legR', 't-rotulo', '', { ph: 'Rótulo' });
         const l = t.campo('legT', 't-legenda', `margin-top:${px('justo')}`, { ph: 'Legenda: quem, onde, quando.' });
@@ -163,7 +169,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     },
 
     legenda(cor, largura = 380) {
-      if (modelo.legendaTopo) return '';
+      if (legendaTopo || ops.legenda === 'nao') return '';
       const r = t.campo('legR', 't-rotulo', '', { ph: 'Rótulo' });
       const l = t.campo('legT', 't-legenda', '', { ph: 'Legenda: quem, onde, quando.' });
       if (!r && !l) return '';
@@ -174,20 +180,6 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       return `<div class="fluxo ${classe}" style="${pos(x, y, w, h)}color:${cor}"${bloco ? ` data-bloco="${bloco}"` : ''}>${miolo}</div>`;
     },
 
-    /** Fechamento comum aos núcleos: imagem estreita à esquerda, conteúdo a partir da coluna 4. */
-    fechamento({ imgL = 264, lockup, seloRodape }) {
-      const contatos = ['site', 'telefone', 'email'].map((k) => t.global(k, 't-texto')).join('');
-      return `${t.fundo(n.fundo)}
-        ${t.cab(A)}
-        ${t.img('a', 0, 440, imgL, 544, { opcional: true })}
-        ${t.fluxo(X(4), 400, W(4, 12), (seloRodape ? 1130 : 1170) - 400, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.global('contatoTitulo', 't-chamada', `margin-bottom:${px('bloco')}`)}
-          ${t.global('contatoTexto', 't-texto', `margin-bottom:${px('bloco')}`)}
-          <div class="contatos" style="border-top:1.5px solid ${regraSobre(n.fundo)};padding-top:${px('filete')}">${contatos}</div>
-          <div class="lockup" style="margin-top:auto">${lockup}</div>`)}
-        ${seloRodape ? t.selo(A) : ''}`;
-    },
   };
   return t;
 }
@@ -218,21 +210,6 @@ const processo = (exemplo) => ({
   },
 });
 
-const capaPapel = ({ exemplo, imgY = 562, imgH = 589, fit = 300 }) => ({
-  id: 'capa-papel',
-  nome: 'Capa sobre papel',
-  desc: 'Título e linha de contexto no alto, faixa de imagem e selo no pé.',
-  slots: { a: 'Imagem' },
-  exemplo,
-  render(t) {
-    // bloco do título: de 150 até um Bloco acima da imagem; ~80 px reservados para a linha de contexto
-    const h = imgY - E.bloco - 150;
-    return `${t.fundo(COR.papel)}${t.cab(A)}
-      ${t.fluxo(M, 150, W12, h, A, `${t.campo('titulo', 't-capa', '', { fit: Math.min(fit, h - 80) })}${t.linha()}`, 'fim')}
-      ${t.img('a', 0, imgY, LARG, imgH)}
-      ${t.selo(A)}`;
-  },
-});
 
 const unicoTexto = ({ exemplo, fundo }) => ({
   id: 'unico',
@@ -253,38 +230,7 @@ const unicoTexto = ({ exemplo, fundo }) => ({
   },
 });
 
-const imagemColuna = (exemplo) => ({
-  id: 'imagem-coluna',
-  nome: 'Imagem + coluna',
-  desc: 'Corte vertical 8 | 4: imagem inteira e coluna estreita no painel.',
-  slots: { a: 'Imagem (colunas 1–8)' },
-  exemplo,
-  render(t) {
-    const f = t.n.painel, cor = tintaSobre(f);
-    return `${t.fundo(COR.papel)}
-      ${t.painel(C8 + h2, 0, LARG - C8 - h2, ALT, f)}
-      ${t.img('a', 0, 0, C8 - h2, ALT)}
-      ${t.veuTopo(200, 0.6, 0, C8 - h2)}${t.veuBase(340, 0.72, 0, C8 - h2)}
-      ${t.cab(B, cor)}
-      ${t.fluxo(X(9), TOPO, W(9, 12), 1150, cor, `
-        ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-        ${t.campo('texto', 't-texto')}`)}
-      ${t.selo(B)}`;
-  },
-});
 
-const pausa = ({ exemplo, cab = B, veuTopo = true }) => ({
-  id: 'pausa',
-  nome: 'Pausa',
-  desc: 'Imagem inteira, sangrando. Legenda opcional no pé.',
-  slots: { a: 'Imagem inteira' },
-  exemplo,
-  render(t) {
-    return `${t.img('a', 0, 0, LARG, ALT)}
-      ${veuTopo ? t.veuTopo() : ''}${t.veuBase()}
-      ${t.cab(cab)}${t.legenda(B)}${t.selo(B)}`;
-  },
-});
 
 const desenho = {
   id: 'desenho',
@@ -314,80 +260,6 @@ const desenho = {
 // ODISSE ESTÚDIO — pessoas, obras e bastidores. Ardósia, duotone, mão.
 
 const ESTUDIO = [
-  {
-    id: 'capa',
-    nome: 'Capa',
-    desc: 'Imagem inteira, título e linha de contexto no pé.',
-    slots: { a: 'Imagem da capa' },
-    exemplo: { titulo: 'Reserva Criativa.', linha: 'Cid Clementino e Nathalia Linhares' },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}
-        ${t.veuTopo()}${t.veuBase(760, 0.85)}
-        ${t.cab(B)}
-        ${t.fluxo(M, 180, W12, 1070, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 440 })}
-          ${t.linha()}`, 'fim')}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'capa-painel',
-    nome: 'Capa em painel',
-    desc: 'Título e linha de contexto sobre ardósia; duas imagens lado a lado.',
-    slots: { a: 'Imagem esquerda', b: 'Imagem direita' },
-    exemplo: { titulo: 'Reserva Criativa.', linha: 'Cid Clementino e Nathalia Linhares' },
-    render(t) {
-      return `${t.fundo(A)}${t.cab(B)}
-        ${t.fluxo(M, 200, W12, 360, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 250 })}
-          ${t.linha()}`)}
-        ${t.img('a', 0, 580, C6 - h2, 590)}
-        ${t.img('b', C6 + h2, 580, LARG - C6 - h2, 590)}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'imagem-legenda',
-    legendaTopo: true,
-    nome: 'Imagem + legenda',
-    desc: 'Imagem inteira com legenda no pé: rótulo e uma linha.',
-    slots: { a: 'Imagem inteira' },
-    exemplo: { legR: 'Obra', legT: 'A figura sob a cobertura metálica.' },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}${t.veuTopo()}${t.veuBase()}
-        ${t.cab(B)}${t.legenda(B)}${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'vertical-8-4',
-    legendaTopo: true,
-    nome: 'Vertical 8 | 4',
-    desc: 'Pessoa e lugar: duas imagens com corte entre as colunas 8 e 9.',
-    slots: { a: 'Imagem larga (1–8)', b: 'Imagem estreita (9–12)' },
-    exemplo: { legR: 'Retrato', legT: 'Nathalia Linhares, desenho em campo.' },
-    render(t) {
-      return `${t.fundo(A)}
-        ${t.img('a', 0, 0, C8 - h2, ALT)}
-        ${t.img('b', C8 + h2, 0, LARG - C8 - h2, ALT)}
-        ${t.veuTopo()}${t.veuBase()}
-        ${t.cab(B)}${t.legenda(B, 420)}${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'vertical-4-8',
-    legendaTopo: true,
-    nome: 'Vertical 4 | 8',
-    desc: 'Duas imagens com corte entre as colunas 4 e 5.',
-    slots: { a: 'Imagem estreita (1–4)', b: 'Imagem larga (5–12)' },
-    exemplo: { legR: 'Visita de obra', legT: 'O vão livre sob a cobertura.' },
-    render(t) {
-      return `${t.fundo(A)}
-        ${t.img('a', 0, 0, C4 - h2, ALT)}
-        ${t.img('b', C4 + h2, 0, LARG - C4 - h2, ALT)}
-        ${t.veuTopo()}${t.veuBase()}
-        ${t.cab(B)}${t.legenda(B, 420)}${t.selo(B)}`;
-    },
-  },
   {
     id: 'janela',
     legendaTopo: true,
@@ -450,101 +322,12 @@ const ESTUDIO = [
         ${t.selo(B)}`;
     },
   },
-  unicoTexto({
-    fundo: () => COR.papel,
-    exemplo: {
-      aviso: 'Prêmio',
-      rotulo: 'Casacor Paraíba 2023',
-      titulo: 'Melhor uso de materiais inovadores.',
-      texto: 'O Odisse recebeu o prêmio na edição 2023 da mostra.',
-      f1r: 'Mostra', f1v: 'CASACOR Paraíba',
-      f2r: 'Ano', f2v: '2023',
-      f3r: 'Estúdio', f3v: 'Odisse Arquitetura & Design',
-    },
-  }),
 ];
 
 // ---------------------------------------------------------------------------
 // ODISSE ARQUITETOS — projetos. Papel e areia, cor plena, roda.
 
 const ARQUITETOS = [
-  {
-    id: 'capa',
-    nome: 'Capa',
-    desc: 'Render inteiro, título branco e linha de contexto no pé.',
-    slots: { a: 'Imagem da capa' },
-    exemplo: { titulo: 'Um horizonte comum.', linha: 'Projeto de interiores do Apto RP 201' },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}
-        ${t.veuTopo()}${t.veuBase(820, 0.8)}
-        ${t.cab(B)}
-        ${t.fluxo(M, 180, W12, 1070, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 520 })}
-          ${t.linha()}`, 'fim')}
-        ${t.selo(B)}`;
-    },
-  },
-  capaPapel({
-    imgY: 420, imgH: 731, fit: 140,
-    exemplo: { titulo: 'Um horizonte comum.', linha: 'Projeto de interiores do Apto RP 201' },
-  }),
-  {
-    id: 'capa-tres',
-    nome: 'Capa em areia',
-    desc: 'Título grande e linha de contexto no painel areia; três imagens em faixa.',
-    slots: { a: 'Imagem 1', b: 'Imagem 2', c: 'Imagem 3' },
-    exemplo: { titulo: 'Um<br>horizonte<br>comum.', linha: 'Projeto de interiores do Apto RP 201' },
-    render(t) {
-      return `${t.fundo(COR.areia)}${t.cab(A)}
-        ${t.fluxo(M, 200, W12, 520, A, `${t.campo('titulo', 't-capa', '', { fit: 400 })}${t.linha()}`)}
-        ${t.img('a', 0, 770, C4 - h2, 360)}
-        ${t.img('b', C4 + h2, 770, C8 - C4 - CORTE, 360)}
-        ${t.img('c', C8 + h2, 770, LARG - C8 - h2, 360)}
-        ${t.selo(A)}`;
-    },
-  },
-  {
-    id: 'vista',
-    nome: 'Imagem + título',
-    desc: 'Imagem no alto; rótulo, título e apoio na coluna 7.',
-    slots: { a: 'Imagem superior' },
-    exemplo: {
-      rotulo: 'A vista',
-      titulo: 'A vista atravessa a casa.',
-      texto: 'Antes restrito à varanda, o mar passa a fazer parte da sala e do jantar.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, 820)}${t.veuTopo()}
-        ${t.cab(B)}
-        ${t.fluxo(M, 820 + E.bloco, W12, 420, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
-          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
-        ${t.selo(A)}`;
-    },
-  },
-  {
-    id: 'tese',
-    nome: 'Tese',
-    desc: 'Rótulo, título e apoio na coluna 7; croqui ou render sangrando embaixo.',
-    slots: { a: 'Imagem inferior' },
-    exemplo: {
-      rotulo: 'A tese',
-      titulo: 'Três ambientes, um ponto de fuga.',
-      texto: 'Sem anteparos entre sala, jantar e cozinha, os três ambientes se voltam para o mesmo horizonte.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt' })}
-        ${t.cab(A)}
-        ${t.fluxo(M, TOPO, W12, 700, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
-          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
-        ${t.selo(A)}`;
-    },
-  },
   {
     id: 'amplitude',
     nome: 'Três ambientes',
@@ -573,48 +356,6 @@ const ARQUITETOS = [
         ${t.selo(A)}`;
     },
   },
-  pausa({ exemplo: { legR: '', legT: '' } }),
-  {
-    id: 'referencia',
-    nome: 'Referência + coluna',
-    desc: 'Imagem nas colunas 1–8 sobre papel; coluna de texto e crédito nas 9–12.',
-    slots: { a: 'Imagem (1–8)' },
-    exemplo: {
-      rotulo: 'A referência',
-      texto: 'Partimos de expressões simbólicas já postas, que transcendem o figurativismo e se imbuem de uma narrativa mitopoética.',
-      fonte: 'Gilvan Samico, A Árvore da Vida e o Infinito Azul, xilogravura.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}${t.cab(A)}
-        ${t.img('a', 0, TOPO, C8 - h2, 1170)}
-        ${t.fluxo(X(9), TOPO, W(9, 12), 1170, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('texto', 't-texto')}
-          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}`)}`)}
-        ${t.selo(A)}`;
-    },
-  },
-  {
-    id: 'duas-coluna',
-    nome: 'Duas imagens + coluna',
-    desc: 'Duas imagens empilhadas nas colunas 1–8; texto e crédito nas 9–12.',
-    slots: { a: 'Imagem superior', b: 'Imagem inferior' },
-    exemplo: {
-      rotulo: 'O caminho',
-      texto: 'Um caminho em construção. A pacificação da tensão entre a expressão simbólico-material de uma cultura que nos é própria e a proficiência técnica da modernidade.',
-      fonte: 'Acima, couro trabalhado. Abaixo, concreto aparente.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}${t.cab(A)}
-        ${t.img('a', 0, TOPO, C8 - h2, 581)}
-        ${t.img('b', 0, TOPO + 581 + CORTE, C8 - h2, 581)}
-        ${t.fluxo(X(9), TOPO, W(9, 12), 1170, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('texto', 't-texto')}
-          ${t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}`)}`)}
-        ${t.selo(A)}`;
-    },
-  },
   {
     id: 'material',
     nome: 'Material',
@@ -636,133 +377,12 @@ const ARQUITETOS = [
         ${t.selo(A)}`;
     },
   },
-  {
-    id: 'vertical-4-8',
-    nome: 'Vertical 4 | 8',
-    desc: 'Duas imagens com corte entre as colunas 4 e 5.',
-    slots: { a: 'Imagem estreita (1–4)', b: 'Imagem larga (5–12)' },
-    exemplo: { legR: '', legT: '' },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, C4 - h2, ALT)}
-        ${t.img('b', C4 + h2, 0, LARG - C4 - h2, ALT)}
-        ${t.veuTopo()}${t.veuBase()}
-        ${t.cab(B)}${t.legenda(B, 300)}${t.selo(B)}`;
-    },
-  },
-  processo({
-    rotulo: 'Processo',
-    p1r: 'Estudo', p1t: 'O enquadramento da vista a partir da mesa de jantar.',
-    p2r: 'Croqui', p2t: 'Sala, jantar e cozinha desenhados sobre o mesmo ponto de fuga.',
-    p3r: 'Imagem final', p3t: 'A vista atravessa toda a planta, da cozinha à varanda.',
-  }),
-  {
-    id: 'ficha',
-    nome: 'Ficha técnica',
-    desc: 'Título e até seis linhas sobre ardósia.',
-    slots: {},
-    exemplo: {
-      titulo: 'Ficha técnica.',
-      f1r: 'Projeto', f1v: 'Retrofit de Interiores do Edf. AVS. Sala de Conferência',
-      f2r: 'Escritório', f2v: 'Odisse, Estúdio de Arquitetura e Design',
-      f3r: 'Tipo', f3v: 'Projeto de Interiores; Retrofit.',
-      f4r: 'Programa', f4v: 'Sala de Conferência; Sala de Reuniões; Estações de Trabalho; Área de Exposição e Encontro.',
-      f5r: 'Premissa', f5v: 'Atualização dos ambientes criativos do edifício segundo o estado da arte, tanto em termos concretos quanto simbólicos.',
-    },
-    render(t) {
-      return `${t.fundo(A)}${t.cab(B)}
-        ${t.fluxo(M, TOPO, W12, 1172, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: 250 })}
-          ${t.ficha('f', 6, B, regraSobre(A), { estilo: 'margin-top:auto', distribuir: true })}`)}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'fechamento',
-    nome: 'Fechamento',
-    desc: 'Chamada e contatos (das informações padrão), mão e logotipo.',
-    slots: { a: 'Imagem lateral (opcional)' },
-    exemplo: { rotulo: 'Contato' },
-    render(t) { return t.fechamento({ imgL: 202, lockup: `${mark('mao', 62)}${mark('odisse', 32)}`, seloRodape: true }); },
-  },
 ];
 
 // ---------------------------------------------------------------------------
 // ODISSE OBJETOS — peças e loja. Grafite, foto de estúdio, flor.
 
 const OBJETOS = [
-  {
-    id: 'capa',
-    nome: 'Capa',
-    desc: 'Foto de estúdio inteira, nome da peça e linha de contexto no alto.',
-    slots: { a: 'Foto da peça' },
-    exemplo: { titulo: 'Vórtice I', linha: 'Receptáculo escultórico, impresso em 3D' },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT, { fundo: '#EDEDEB' })}
-        ${t.veuBase(520, 0.7)}
-        ${t.cab(A)}
-        ${t.fluxo(M, 180, W12, 360, A, `${t.campo('titulo', 't-capa', '', { fit: 250 })}${t.linha()}`)}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'capa-centro',
-    nome: 'Capa centralizada',
-    desc: 'Como a Capa (OO-01), com nome da peça e linha de contexto centralizados.',
-    slots: { a: 'Foto da peça' },
-    exemplo: { titulo: 'Vórtice I', linha: 'Receptáculo escultórico, impresso em 3D' },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT, { fundo: '#EDEDEB' })}
-        ${t.veuBase(520, 0.7)}
-        ${t.cab(A)}
-        ${t.fluxo(M, 180, W12, 360, A, `${t.campo('titulo', 't-capa', 'text-align:center', { fit: 250 })}${t.linha('text-align:center')}`)}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'painel-imagem',
-    nome: 'Painel + imagem',
-    desc: 'Título e apoio no painel grafite; foto da peça embaixo.',
-    slots: { a: 'Foto inferior' },
-    exemplo: {
-      rotulo: 'A peça',
-      titulo: 'Um coração em processo.',
-      texto: 'Corpo único que se torce em torno do próprio eixo, em sulcos helicoidais contínuos.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.painel(0, 0, LARG, 578, COR.grafite, ` data-segue="txt" data-gap="${E.bloco}" data-modo="altura"`)}
-        ${t.img('a', 0, 586, LARG, 854, { fundo: '#EDEDEB', segue: 'txt', gap: E.bloco + CORTE })}${t.veuBase()}
-        ${t.cab(B)}
-        ${t.fluxo(M, TOPO, W12, 700, B, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
-          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'imagem-painel',
-    nome: 'Imagem + painel',
-    desc: 'Foto da peça no alto; título e apoio no painel grafite.',
-    slots: { a: 'Foto superior' },
-    exemplo: {
-      rotulo: 'A peça',
-      titulo: 'Um coração em processo.',
-      texto: 'Um receptáculo em corpo único que se torce em torno do próprio eixo, da base ao topo, em sulcos helicoidais contínuos.',
-    },
-    render(t) {
-      return `${t.fundo(COR.grafite)}
-        ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB' })}
-        ${t.cab(A)}
-        ${t.fluxo(M, 760 + E.bloco, W12, 1300 - 760 - E.bloco, B, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
-          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`)}
-        ${t.selo(B)}`;
-    },
-  },
-  pausa({ cab: A, veuTopo: false, exemplo: { legR: '', legT: '' } }),
   {
     id: 'uso-janela',
     nome: 'Uso + janela',
@@ -802,12 +422,6 @@ const OBJETOS = [
         ${t.selo(B)}`;
     },
   },
-  processo({
-    rotulo: 'Processo',
-    p1r: 'Modelagem', p1t: 'A forma é modelada digitalmente: uma seção que gira em torno do eixo à medida que sobe.',
-    p2r: 'Impressão', p2t: 'Impressa em PLA, em peça única e sem montagem, por deposição de filamento fundido.',
-    p3r: 'Acabamento', p3t: 'Lixada, corrigida, preparada com primer e pintada à mão em PU texturizado preto fosco.',
-  }),
   desenho,
   {
     id: 'ficha-lateral',
@@ -833,36 +447,6 @@ const OBJETOS = [
           ${t.ficha('f', 7, A, regraSobre(COR.papel), { empilhada: true })}`)}
         ${t.selo(A)}`;
     },
-  },
-  {
-    id: 'imagem-ficha',
-    nome: 'Imagem + ficha',
-    desc: 'Foto da peça no alto e ficha completa embaixo.',
-    slots: { a: 'Foto superior' },
-    exemplo: {
-      f1r: 'Coleção', f1v: 'Vórtice',
-      f2r: 'Função', f2v: 'Vaso decorativo, uso seco',
-      f3r: 'Dimensões', f3v: '115 × 115 × 135 mm',
-      f4r: 'Material', f4v: 'PLA, pintura PU texturizada',
-      f5r: 'Processo', f5v: 'Impressão 3D, acabamento à mão',
-      f6r: 'Cor', f6v: 'Preto fosco',
-      f7r: 'Design', f7v: 'Cid Clementino, Nathalia Linhares',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, 698, { fundo: '#EDEDEB' })}
-        ${t.cab(A)}
-        ${t.fluxo(M, 698 + E.bloco, W12, 1300 - 698 - E.bloco, A, t.ficha('f', 7, A, regraSobre(COR.papel)))}
-        ${t.selo(A)}`;
-    },
-  },
-  {
-    id: 'fechamento',
-    nome: 'Fechamento · loja',
-    desc: 'Chamada para a loja, contatos, flor e logotipo.',
-    slots: { a: 'Foto lateral (opcional)' },
-    exemplo: { rotulo: 'Loja' },
-    render(t) { return t.fechamento({ imgL: 264, lockup: `${mark('flor', 70)}${mark('odisse', 32)}`, seloRodape: false }); },
   },
   {
     id: 'unico-imagem',
@@ -896,69 +480,6 @@ const OBJETOS = [
 
 const ELAIA = [
   {
-    id: 'capa',
-    nome: 'Capa',
-    desc: 'Imagem inteira, título e linha de contexto no pé.',
-    slots: { a: 'Imagem da capa' },
-    exemplo: {
-      titulo: 'Backrooms, Labirinto Domesticado.',
-      linha: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
-    },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}
-        ${t.veuTopo()}${t.veuBase(900, 0.8)}
-        ${t.cab(B)}
-        ${t.fluxo(M, 180, W12, 1070, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 520 })}
-          ${t.linha()}`, 'fim')}
-        ${t.selo(B)}`;
-    },
-  },
-  capaPapel({
-    exemplo: {
-      titulo: 'Backrooms,<br>Labirinto<br>Domesticado',
-      linha: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
-    },
-  }),
-  {
-    id: 'tese',
-    nome: 'Tese',
-    desc: 'Título e apoio sobre papel; imagem sangrando embaixo.',
-    slots: { a: 'Imagem inferior' },
-    exemplo: {
-      titulo: 'A incerteza é mais assustadora que a alegoria.',
-      texto: 'Ao traçar um paralelo entre os anseios da mente de Clark e os backrooms, a narrativa do filme homônimo perde forças na exploração do horror espacial ao dar sentido ao desconhecido.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 762, LARG, 678, { segue: 'txt' })}${t.veuBase()}
-        ${t.cab(A)}
-        ${t.fluxo(M, TOPO, W12, 800, A, `
-          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
-          ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`, '', 'txt')}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'titulo-imagem',
-    nome: 'Imagem + título',
-    desc: 'Imagem no alto; título e texto sobre papel.',
-    slots: { a: 'Imagem superior' },
-    exemplo: {
-      titulo: 'Aquilo que é indefinido nos causa ansiedade.',
-      texto: 'Ao virarmos a esquina, estaremos seguros ou encararemos um monstro?<br>Ao ir do ponto A ao ponto B, tem-se uma jornada com um fim claro, no entanto, entre esses dois pontos, o caminho é um espaço liminar.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, 660)}${t.veuTopo()}
-        ${t.cab(B)}
-        ${t.fluxo(M, 660 + E.bloco, W12, 600, A, `
-          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
-          ${t.campo('texto', 't-texto', `margin-top:${px('bloco')}`)}`)}
-        ${t.selo(A)}`;
-    },
-  },
-  {
     id: 'imagem-texto',
     nome: 'Imagem + texto',
     desc: 'Imagem grande no alto; rótulo na coluna 1 e texto a partir da 4.',
@@ -976,48 +497,6 @@ const ELAIA = [
         ${t.selo(A)}`;
     },
   },
-  {
-    id: 'imagem-titulo-topo',
-    nome: 'Imagem + título no alto',
-    desc: 'Imagem inteira, título branco no alto e apoio na coluna 7.',
-    slots: { a: 'Imagem inteira' },
-    exemplo: {
-      titulo: 'Espaço liminar é qualquer espaço intermediário.',
-      texto: 'Um estágio de transição que não se restringe à abordagem espacial, mas à sua condição transitória.',
-    },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}
-        ${t.veuTopo(760, 0.6)}${t.veuBase()}
-        ${t.cab(B)}
-        ${t.fluxo(M, TOPO, W12, 700, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
-          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
-        ${t.selo(B)}`;
-    },
-  },
-  {
-    id: 'imagem-titulo-base',
-    nome: 'Imagem + título no pé',
-    desc: 'Imagem inteira, título e texto brancos na base.',
-    slots: { a: 'Imagem inteira' },
-    exemplo: {
-      titulo: 'Uma outra face do Espaço Liminar: Backrooms.',
-      texto: 'Os backrooms são espaços liminares que não pressupõem um fim.<br>Um lugar <b>sem razão</b> de ser, <b>não-lugares</b>, uma passagem que leva a lugar nenhum. O que existe ao virar a esquina?',
-    },
-    render(t) {
-      return `${t.img('a', 0, 0, LARG, ALT)}
-        ${t.veuTopo()}${t.veuBase(860, 0.82)}
-        ${t.cab(B)}
-        ${t.fluxo(M, 180, W(1, 11), 1000, B, `
-          ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
-          ${t.campo('texto', 't-texto', `margin-top:${px('bloco')}`)}`, 'fim')}
-        ${t.selo(B)}`;
-    },
-  },
-  imagemColuna({
-    rotulo: 'Dante',
-    texto: 'O <b>Purgatório</b> descrito por Dante na Divina Comédia é um exemplo de espaço liminar.<br>Uma travessia com obstáculos que prenunciam uma transformação. É um estado intermediário que tem sentido e encaminha a um propósito.',
-  }),
   {
     id: 'citacao',
     nome: 'Citação',
@@ -1055,14 +534,6 @@ const ELAIA = [
     },
   },
   {
-    id: 'fechamento',
-    nome: 'Fechamento · leitura',
-    desc: 'Chamada para o Substack, link e logotipo Elaia.',
-    slots: { a: 'Retrato lateral (opcional)' },
-    exemplo: { rotulo: 'Leitura' },
-    render(t) { return t.fechamento({ imgL: 264, lockup: mark('elaia', 44), seloRodape: true }); },
-  },
-  {
     id: 'materia-bruta',
     nome: 'Matéria Bruta · episódio',
     desc: 'Post do podcast: faixa ocre com título, episódio, "Com" e "Ouça"; retrato abaixo.',
@@ -1091,30 +562,391 @@ const ELAIA = [
         ${t.selo(B)}`;
     },
   },
-  unicoTexto({
-    fundo: () => COR.pessego,
-    exemplo: {
-      aviso: 'Novo ensaio',
-      rotulo: 'Agora no Elaia',
-      titulo: 'Backrooms, Labirinto Domesticado.',
-      texto: 'Parte I da série de ensaios de <b>Cid Clementino</b> sobre o fenômeno dos backrooms.',
-      f1r: 'Série', f1v: 'Backrooms, Labirinto Domesticado',
-      f2r: 'Leitura', f2v: 'odisse.substack.com',
-      f3r: 'Autor', f3v: 'Cid Clementino',
-    },
-  }),
 ];
 
 // ---------------------------------------------------------------------------
+// MODELOS UNIVERSAIS (O-01…O-11) — uma composição comum aos quatro núcleos.
+// O núcleo continua definindo a identidade (papel, painel, véu, selo, tratamento, logotipo);
+// o card define a composição, com opções escolhidas no painel esquerdo ("Personalização do card").
 
-export const CATALOGO = { estudio: ESTUDIO, arquitetos: ARQUITETOS, objetos: OBJETOS, elaia: ELAIA };
+const FOTO_CLARA = (n) => n.id === 'objetos'; // foto de estúdio sobre fundo claro: texto ardósia, sem véu no alto
+const FUNDO_FOTO = (n) => (FOTO_CLARA(n) ? '#EDEDEB' : undefined);
+const op = (k, rot, valores, padrao) => ({ k, rot, valores, padrao });
+const OP_FUNDO = (padrao = 'papel') => op('fundo', 'Fundo', [['papel', 'Papel'], ['painel', 'Painel do núcleo']], padrao);
+const OP_LEGENDA = op('legenda', 'Legenda', [['nao', 'Sem'], ['pe', 'No pé'], ['topo', 'No topo']], (n) => (n.id === 'estudio' ? 'topo' : 'pe'));
+const porNucleo = (mapa) => (nid) => ({ ...(mapa[nid] || mapa.padrao) });
+
+const EX_CAPA = {
+  estudio: { titulo: 'Reserva Criativa.', linha: 'Cid Clementino e Nathalia Linhares' },
+  arquitetos: { titulo: 'Um horizonte comum.', linha: 'Projeto de interiores do Apto RP 201' },
+  objetos: { titulo: 'Vórtice I', linha: 'Receptáculo escultórico, impresso em 3D' },
+  elaia: { titulo: 'Backrooms, Labirinto Domesticado.', linha: 'A partir de Backrooms, Labirinto Domesticado: Parte I' },
+};
+
+/** Fatias horizontais de uma faixa de imagens: 1 inteira, 2 no meio (6 | 6), 3 nos cortes 4 | 8. */
+function fatias(qtd) {
+  if (qtd === 3) return [[0, C4 - h2], [C4 + h2, C8 - C4 - CORTE], [C8 + h2, LARG - C8 - h2]];
+  if (qtd === 2) return [[0, C6 - h2], [C6 + h2, LARG - C6 - h2]];
+  return [[0, LARG]];
+}
+
+const O01 = {
+  id: 'o01', cod: 'O-01', grupo: 'capa',
+  nome: 'Capa com imagem inteira',
+  desc: 'Imagem inteira, título e linha de contexto no alto ou no pé.',
+  slots: { a: 'Imagem da capa' },
+  opcoes: [
+    op('texto', 'Bloco de texto', [['alto', 'No alto'], ['pe', 'No pé']], (n) => (FOTO_CLARA(n) ? 'alto' : 'pe')),
+    op('alinhar', 'Alinhamento', [['esq', 'À esquerda'], ['centro', 'Centralizado']], 'esq'),
+  ],
+  exemplo: porNucleo(EX_CAPA),
+  render(t) {
+    const clara = FOTO_CLARA(t.n), alto = t.op('texto') === 'alto';
+    const al = t.op('alinhar') === 'centro' ? 'text-align:center' : '';
+    const cor = clara && alto ? A : B; // foto clara: ardósia no alto; no pé, branco sobre o véu
+    const extra = t.tem('linha') ? 0 : 80; // sem linha de contexto, o título ocupa o espaço dela
+    const miolo = `${t.campo('titulo', 't-capa', al, { fit: (alto ? 400 : 520) + extra })}${t.linha(al)}`;
+    const veus = clara ? t.veuBase(520, 0.7) : alto ? `${t.veuTopo(760, 0.6)}${t.veuBase()}` : `${t.veuTopo()}${t.veuBase(820, 0.8)}`;
+    return `${t.img('a', 0, 0, LARG, ALT, { fundo: FUNDO_FOTO(t.n) })}${veus}
+      ${t.cab(clara ? A : B)}
+      ${alto ? t.fluxo(M, 180, W12, 560, cor, miolo) : t.fluxo(M, 180, W12, 1070, cor, miolo, 'fim')}
+      ${t.selo(B)}`;
+  },
+};
+
+const BASE_FAIXA = 1170; // base fixa da faixa de imagens do O-02
+const O02 = {
+  id: 'o02', cod: 'O-02', grupo: 'capa',
+  nome: 'Capa com faixa de imagens',
+  desc: 'Título e linha no alto; faixa de 1 a 3 imagens com a base fixa, que encolhe pelo topo quando o título cresce.',
+  slots: { a: 'Imagem 1', b: 'Imagem 2', c: 'Imagem 3' },
+  opcoes: [
+    op('imagens', 'Imagens na faixa', [['1', '1'], ['2', '2'], ['3', '3']], (n) => (n.id === 'estudio' ? '2' : '1')),
+    OP_FUNDO((n) => (n.id === 'estudio' ? 'painel' : 'papel')),
+  ],
+  slotsAtivos: (t) => ['a', 'b', 'c'].slice(0, Number(t.op('imagens'))),
+  exemplo: porNucleo({ ...EX_CAPA, elaia: { titulo: 'Backrooms,<br>Labirinto<br>Domesticado', linha: EX_CAPA.elaia.linha } }),
+  render(t) {
+    const f = t.op('fundo') === 'painel' ? t.n.painel : COR.papel, cor = tintaSobre(f);
+    const imgs = fatias(Number(t.op('imagens'))).map(([x, w], i) =>
+      t.img('abc'[i], x, 560, w, BASE_FAIXA - 560, { segue: 'tit', fundo: FUNDO_FOTO(t.n) })).join('');
+    return `${t.fundo(f)}${t.cab(cor)}
+      ${t.fluxo(M, 160, W12, 560, cor, `${t.campo('titulo', 't-capa', '', { fit: t.tem('linha') ? 400 : 480 })}${t.linha()}`, '', 'tit')}
+      ${imgs}
+      ${t.selo(cor)}`;
+  },
+};
+
+const EX_TESE = {
+  estudio: { titulo: 'Um espaço permanente de pesquisa.', texto: 'Rigor técnico, investigação histórica e sensibilidade artística, em arquitetura e design.' },
+  arquitetos: { titulo: 'Três ambientes, um ponto de fuga.', texto: 'Sem anteparos entre sala, jantar e cozinha, os três ambientes se voltam para o mesmo horizonte.' },
+  objetos: { titulo: 'Um coração em processo.', texto: 'Corpo único que se torce em torno do próprio eixo, em sulcos helicoidais contínuos.' },
+  elaia: { titulo: 'A incerteza é mais assustadora que a alegoria.', texto: 'Ao traçar um paralelo entre os anseios da mente de Clark e os backrooms, a narrativa do filme homônimo perde forças na exploração do horror espacial ao dar sentido ao desconhecido.' },
+};
+
+const O03 = {
+  id: 'o03', cod: 'O-03',
+  nome: 'Título + imagem',
+  desc: 'Título e texto de apoio com uma imagem sangrando, em cima ou embaixo.',
+  slots: { a: 'Imagem' },
+  opcoes: [
+    op('ordem', 'Ordem', [['texto', 'Texto em cima'], ['imagem', 'Imagem em cima']], 'texto'),
+    OP_FUNDO((n) => (n.id === 'objetos' ? 'painel' : 'papel')),
+  ],
+  exemplo: porNucleo(EX_TESE),
+  render(t) {
+    const painel = t.op('fundo') === 'painel';
+    const f = painel ? t.n.painel : COR.papel, cor = tintaSobre(f);
+    const texto = (y, h, bloco = '') => t.fluxo(M, y, W12, h, cor, `
+      ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
+      ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`, '', bloco);
+    if (t.op('ordem') === 'imagem') {
+      const hImg = 760;
+      return `${t.fundo(f)}
+        ${t.img('a', 0, 0, LARG, hImg, { fundo: FUNDO_FOTO(t.n) })}${FOTO_CLARA(t.n) ? '' : t.veuTopo()}
+        ${t.cab(FOTO_CLARA(t.n) ? A : B)}
+        ${texto(hImg + E.bloco, 1300 - hImg - E.bloco)}
+        ${t.selo(cor)}`;
+    }
+    // texto em cima: a imagem acompanha o fim do texto; com painel, o painel também
+    const seg = painel ? { segue: 'txt', gap: E.bloco + CORTE } : { segue: 'txt' };
+    return `${t.fundo(COR.papel)}
+      ${painel ? t.painel(0, 0, LARG, 578, f, ` data-segue="txt" data-gap="${E.bloco}" data-modo="altura"`) : ''}
+      ${t.img('a', 0, 640, LARG, ALT - 640, { ...seg, fundo: FUNDO_FOTO(t.n) })}${t.veuBase()}
+      ${t.cab(cor)}
+      ${texto(TOPO, 800, 'txt')}
+      ${t.selo(B)}`;
+  },
+};
+
+const O04 = {
+  id: 'o04', cod: 'O-04',
+  nome: 'Imagem inteira',
+  desc: 'Imagem inteira, sangrando. Legenda opcional no pé ou no topo.',
+  slots: { a: 'Imagem inteira' },
+  opcoes: [OP_LEGENDA],
+  exemplo: porNucleo({ estudio: { legR: 'Obra', legT: 'A figura sob a cobertura metálica.' }, padrao: { legR: '', legT: '' } }),
+  render(t) {
+    const clara = FOTO_CLARA(t.n);
+    return `${t.img('a', 0, 0, LARG, ALT, { fundo: FUNDO_FOTO(t.n) })}
+      ${clara ? '' : t.veuTopo()}${t.veuBase()}
+      ${t.cab(clara ? A : B)}${t.legenda(B)}${t.selo(B)}`;
+  },
+};
+
+const CORTES = { '4-8': C4, '8-4': C8, '6-6': C6 };
+const O05 = {
+  id: 'o05', cod: 'O-05',
+  nome: 'Duas imagens verticais',
+  desc: 'Duas imagens de altura inteira, com corte nas colunas 4 | 8, 8 | 4 ou 6 | 6.',
+  slots: { a: 'Imagem esquerda', b: 'Imagem direita' },
+  opcoes: [
+    op('corte', 'Corte', [['4-8', '4 | 8'], ['8-4', '8 | 4'], ['6-6', '6 | 6']], (n) => (n.id === 'estudio' ? '8-4' : '4-8')),
+    OP_LEGENDA,
+  ],
+  exemplo: porNucleo({ estudio: { legR: 'Retrato', legT: 'Nathalia Linhares, desenho em campo.' }, padrao: { legR: '', legT: '' } }),
+  render(t) {
+    const c = CORTES[t.op('corte')] || C4;
+    return `${t.fundo(t.n.id === 'estudio' ? A : COR.papel)}
+      ${t.img('a', 0, 0, c - h2, ALT)}
+      ${t.img('b', c + h2, 0, LARG - c - h2, ALT)}
+      ${t.veuTopo()}${t.veuBase()}
+      ${t.cab(B)}${t.legenda(B, 420)}${t.selo(B)}`;
+  },
+};
+
+const EX_COLUNA = {
+  elaia: { texto: 'O <b>Purgatório</b> descrito por Dante na Divina Comédia é um exemplo de espaço liminar.<br>Uma travessia com obstáculos que prenunciam uma transformação. É um estado intermediário que tem sentido e encaminha a um propósito.', fonte: '' },
+  padrao: { texto: 'Partimos de expressões simbólicas já postas, que transcendem o figurativismo e se imbuem de uma narrativa mitopoética.', fonte: 'Gilvan Samico, A Árvore da Vida e o Infinito Azul, xilogravura.' },
+};
+const O06 = {
+  id: 'o06', cod: 'O-06',
+  nome: 'Imagem + coluna',
+  desc: 'Uma ou duas imagens nas colunas 1–8; coluna de texto nas 9–12, com crédito opcional no pé.',
+  slots: { a: 'Imagem 1 (1–8)', b: 'Imagem 2 (1–8)' },
+  opcoes: [
+    op('imagens', 'Imagens', [['1', '1'], ['2', '2']], '1'),
+    OP_FUNDO((n) => (n.id === 'elaia' ? 'painel' : 'papel')),
+    op('credito', 'Crédito no pé', [['sim', 'Sim'], ['nao', 'Não']], (n) => (n.id === 'elaia' ? 'nao' : 'sim')),
+  ],
+  slotsAtivos: (t) => (t.op('imagens') === '2' ? ['a', 'b'] : ['a']),
+  exemplo: porNucleo(EX_COLUNA),
+  render(t) {
+    const painel = t.op('fundo') === 'painel';
+    const f = painel ? t.n.painel : COR.papel, cor = tintaSobre(f);
+    const fimImg = C8 - h2;
+    // respiro de um Bloco entre a imagem e a coluna de texto
+    const xCol = fimImg + E.bloco, wCol = LARG - M - xCol;
+    const y0 = painel ? 0 : TOPO, y1 = painel ? ALT : TOPO + 1170;
+    const dois = t.op('imagens') === '2';
+    const hImg = dois ? (y1 - y0 - CORTE) / 2 : y1 - y0;
+    const imgs = t.img('a', 0, y0, fimImg, hImg) + (dois ? t.img('b', 0, y0 + hImg + CORTE, fimImg, hImg) : '');
+    const credito = t.op('credito') === 'sim'
+      ? t.campo('fonte', 't-legenda fonte', `margin-top:auto;border-top:1.5px solid ${regraSobre(f)};padding-top:${px('filete')}`, { ph: 'Crédito ou legenda' })
+      : '';
+    return `${t.fundo(COR.papel)}
+      ${painel ? t.painel(C8 + h2, 0, LARG - C8 - h2, ALT, f) : ''}
+      ${imgs}
+      ${painel ? `${t.veuTopo(200, 0.6, 0, fimImg)}${t.veuBase(340, 0.72, 0, fimImg)}` : ''}
+      ${t.cab(painel ? B : A, cor)}
+      ${t.fluxo(xCol, TOPO, wCol, 1170, cor, `${t.campo('texto', 't-texto')}${credito}`)}
+      ${t.selo(painel ? B : A)}`;
+  },
+};
+
+const EX_PROCESSO = {
+  objetos: {
+    p1r: 'Modelagem', p1t: 'A forma é modelada digitalmente: uma seção que gira em torno do eixo à medida que sobe.',
+    p2r: 'Impressão', p2t: 'Impressa em PLA, em peça única e sem montagem, por deposição de filamento fundido.',
+    p3r: 'Acabamento', p3t: 'Lixada, corrigida, preparada com primer e pintada à mão em PU texturizado preto fosco.',
+  },
+  padrao: {
+    p1r: 'Estudo', p1t: 'O enquadramento da vista a partir da mesa de jantar.',
+    p2r: 'Croqui', p2t: 'Sala, jantar e cozinha desenhados sobre o mesmo ponto de fuga.',
+    p3r: 'Imagem final', p3t: 'A vista atravessa toda a planta, da cozinha à varanda.',
+  },
+};
+const O07 = { ...processo(porNucleo(EX_PROCESSO)), id: 'o07', cod: 'O-07' };
+
+const EX_IMG_TITULO = {
+  elaia: { titulo: 'Espaço liminar é qualquer espaço intermediário.', texto: 'Um estágio de transição que não se restringe à abordagem espacial, mas à sua condição transitória.' },
+  padrao: { titulo: 'A vista atravessa a casa.', texto: 'Antes restrito à varanda, o mar passa a fazer parte da sala e do jantar.' },
+};
+const O08 = {
+  id: 'o08', cod: 'O-08',
+  nome: 'Imagem inteira + título',
+  desc: 'Imagem inteira com título e texto de apoio brancos, no alto ou no pé.',
+  slots: { a: 'Imagem inteira' },
+  opcoes: [op('texto', 'Bloco de texto', [['alto', 'No alto'], ['pe', 'No pé']], 'pe')],
+  exemplo: porNucleo(EX_IMG_TITULO),
+  render(t) {
+    const alto = t.op('texto') === 'alto';
+    const miolo = `${t.campo('titulo', 't-titulo', '', { fit: 340 })}${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`;
+    return `${t.img('a', 0, 0, LARG, ALT)}
+      ${alto ? `${t.veuTopo(760, 0.6)}${t.veuBase()}` : `${t.veuTopo()}${t.veuBase(860, 0.82)}`}
+      ${t.cab(B)}
+      ${alto ? t.fluxo(M, TOPO, W12, 700, B, miolo) : t.fluxo(M, 180, W12, 1060, B, miolo, 'fim')}
+      ${t.selo(B)}`;
+  },
+};
+
+const FICHA_ARQ = {
+  titulo: 'Ficha técnica.',
+  f1r: 'Projeto', f1v: 'Retrofit de Interiores do Edf. AVS. Sala de Conferência',
+  f2r: 'Escritório', f2v: 'Odisse, Estúdio de Arquitetura e Design',
+  f3r: 'Tipo', f3v: 'Projeto de Interiores; Retrofit.',
+  f4r: 'Programa', f4v: 'Sala de Conferência; Sala de Reuniões; Estações de Trabalho; Área de Exposição e Encontro.',
+  f5r: 'Premissa', f5v: 'Atualização dos ambientes criativos do edifício segundo o estado da arte, tanto em termos concretos quanto simbólicos.',
+};
+const FICHA_OBJ = {
+  titulo: '',
+  f1r: 'Coleção', f1v: 'Vórtice',
+  f2r: 'Função', f2v: 'Vaso decorativo, uso seco',
+  f3r: 'Dimensões', f3v: '115 × 115 × 135 mm',
+  f4r: 'Material', f4v: 'PLA, pintura PU texturizada',
+  f5r: 'Processo', f5v: 'Impressão 3D, acabamento à mão',
+  f6r: 'Cor', f6v: 'Preto fosco',
+  f7r: 'Design', f7v: 'Cid Clementino, Nathalia Linhares',
+};
+const O09 = {
+  id: 'o09', cod: 'O-09',
+  nome: 'Ficha',
+  desc: 'Título e ficha em linhas: sobre o tom escuro do núcleo, ou sobre papel com imagem no alto.',
+  slots: { a: 'Imagem superior' },
+  opcoes: [op('imagem', 'Imagem', [['sem', 'Sem'], ['com', 'Com imagem no alto']], (n) => (n.id === 'objetos' ? 'com' : 'sem'))],
+  slotsAtivos: (t) => (t.op('imagem') === 'com' ? ['a'] : []),
+  exemplo: porNucleo({ objetos: FICHA_OBJ, padrao: FICHA_ARQ }),
+  render(t) {
+    if (t.op('imagem') === 'com') {
+      const clara = FOTO_CLARA(t.n), hImg = 560;
+      return `${t.fundo(COR.papel)}
+        ${t.img('a', 0, 0, LARG, hImg, { fundo: FUNDO_FOTO(t.n) })}${clara ? '' : t.veuTopo()}
+        ${t.cab(clara ? A : B)}
+        ${t.fluxo(M, hImg + E.bloco, W12, 1300 - hImg - E.bloco, A, `
+          ${t.campo('titulo', 't-titulo', `margin-bottom:${px('bloco')}`, { fit: 120, ph: 'Título (opcional)' })}
+          ${t.ficha('f', 7, A, regraSobre(COR.papel))}`)}
+        ${t.selo(A)}`;
+    }
+    const f = t.n.veu;
+    return `${t.fundo(f)}${t.cab(B)}
+      ${t.fluxo(M, TOPO, W12, 1172, B, `
+        ${t.campo('titulo', 't-titulo', '', { fit: 250 })}
+        ${t.ficha('f', 7, B, regraSobre(f), { estilo: 'margin-top:auto', distribuir: true })}`)}
+      ${t.selo(B)}`;
+  },
+};
+
+const LOCKUP = {
+  estudio: () => `${mark('mao', 62)}${mark('odisse', 32)}`,
+  arquitetos: () => `${mark('mao', 62)}${mark('odisse', 32)}`,
+  objetos: () => `${mark('flor', 70)}${mark('odisse', 32)}`,
+  elaia: () => mark('elaia', 44),
+};
+const IMG_FECH = { y: 440, h: 544, w: 264 };
+const O10 = {
+  id: 'o10', cod: 'O-10', grupo: 'fechamento',
+  nome: 'Fechamento',
+  desc: 'Chamada no topo da imagem (rótulo acima), contatos na base dela e texto de apoio no meio; logotipo no pé, sem selo.',
+  slots: { a: 'Imagem lateral (opcional)' },
+  exemplo: porNucleo({ objetos: { rotulo: 'Loja' }, elaia: { rotulo: 'Leitura' }, padrao: { rotulo: 'Contato' } }),
+  render(t) {
+    const contatos = ['site', 'telefone', 'email'].map((k) => t.global(k, 't-texto')).join('');
+    const topo = IMG_FECH.y, base = IMG_FECH.y + IMG_FECH.h;
+    const apoio = t.global('contatoTexto', 't-texto', 'margin:auto 0');
+    return `${t.fundo(COR.papel)}
+      ${t.cab(A)}
+      ${t.img('a', 0, topo, IMG_FECH.w, IMG_FECH.h, { opcional: true })}
+      ${t.campo('rotulo', 't-rotulo', `position:absolute;left:${X(4)}px;top:${topo - E.proximo}px;transform:translateY(-100%);color:${A}`)}
+      ${t.fluxo(X(4), topo, W(4, 12), base - topo, A, `
+        ${t.global('contatoTitulo', 't-chamada fech-chamada', '')}
+        ${apoio || '<div style="margin-top:auto"></div>'}
+        <div class="contatos" style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}">${contatos}</div>`)}
+      <div class="lockup" style="position:absolute;left:${X(4)}px;top:${ALT - E.selo}px;transform:translateY(-50%);color:${A}">${LOCKUP[t.n.id]()}</div>`;
+  },
+};
+
+const EX_UNICO = {
+  elaia: {
+    aviso: 'Novo ensaio', rotulo: 'Agora no Elaia', titulo: 'Backrooms, Labirinto Domesticado.',
+    texto: 'Parte I da série de ensaios de <b>Cid Clementino</b> sobre o fenômeno dos backrooms.',
+    f1r: 'Série', f1v: 'Backrooms, Labirinto Domesticado', f2r: 'Leitura', f2v: 'odisse.substack.com', f3r: 'Autor', f3v: 'Cid Clementino',
+  },
+  padrao: {
+    aviso: 'Prêmio', rotulo: 'Casacor Paraíba 2023', titulo: 'Melhor uso de materiais inovadores.',
+    texto: 'O Odisse recebeu o prêmio na edição 2023 da mostra.',
+    f1r: 'Mostra', f1v: 'CASACOR Paraíba', f2r: 'Ano', f2v: '2023', f3r: 'Estúdio', f3v: 'Odisse Arquitetura & Design',
+  },
+};
+const O11 = {
+  ...unicoTexto({ exemplo: porNucleo(EX_UNICO), fundo: (t) => (t.n.id === 'elaia' ? COR.pessego : COR.papel) }),
+  id: 'o11', cod: 'O-11',
+};
+
+const UNIVERSAIS = [O01, O02, O03, O04, O05, O06, O07, O08, O09, O10, O11];
+const UNIV_POR_ID = Object.fromEntries(UNIVERSAIS.map((m) => [m.id, m]));
+
+/** Cards de versões anteriores → universal + opções equivalentes (a aparência não muda). */
+const MIGRA = {
+  'estudio:capa': ['o01', { texto: 'pe' }], 'arquitetos:capa': ['o01', { texto: 'pe' }], 'elaia:capa': ['o01', { texto: 'pe' }],
+  'objetos:capa': ['o01', { texto: 'alto' }], 'objetos:capa-centro': ['o01', { texto: 'alto', alinhar: 'centro' }],
+  'arquitetos:capa-papel': ['o02', { imagens: '1', fundo: 'papel' }], 'elaia:capa-papel': ['o02', { imagens: '1', fundo: 'papel' }],
+  'arquitetos:capa-tres': ['o02', { imagens: '3', fundo: 'painel' }], 'estudio:capa-painel': ['o02', { imagens: '2', fundo: 'painel' }],
+  'arquitetos:tese': ['o03', { ordem: 'texto', fundo: 'papel' }], 'elaia:tese': ['o03', { ordem: 'texto', fundo: 'papel' }],
+  'objetos:painel-imagem': ['o03', { ordem: 'texto', fundo: 'painel' }],
+  'arquitetos:vista': ['o03', { ordem: 'imagem', fundo: 'papel' }], 'elaia:titulo-imagem': ['o03', { ordem: 'imagem', fundo: 'papel' }],
+  'arquitetos:abertura-projeto': ['o03', { ordem: 'imagem', fundo: 'papel' }],
+  'objetos:imagem-painel': ['o03', { ordem: 'imagem', fundo: 'painel' }],
+  'estudio:imagem-legenda': ['o04', { legenda: 'topo' }], 'arquitetos:pausa': ['o04', { legenda: 'pe' }], 'objetos:pausa': ['o04', { legenda: 'pe' }],
+  'estudio:vertical-8-4': ['o05', { corte: '8-4', legenda: 'topo' }], 'estudio:vertical-4-8': ['o05', { corte: '4-8', legenda: 'topo' }],
+  'arquitetos:vertical-4-8': ['o05', { corte: '4-8', legenda: 'pe' }],
+  'arquitetos:referencia': ['o06', { imagens: '1', fundo: 'papel', credito: 'sim' }],
+  'arquitetos:duas-coluna': ['o06', { imagens: '2', fundo: 'papel', credito: 'sim' }],
+  'elaia:imagem-coluna': ['o06', { imagens: '1', fundo: 'painel', credito: 'nao' }],
+  'arquitetos:processo': ['o07', {}], 'objetos:processo': ['o07', {}],
+  'elaia:imagem-titulo-topo': ['o08', { texto: 'alto' }], 'elaia:imagem-titulo-base': ['o08', { texto: 'pe' }],
+  'arquitetos:ficha': ['o09', { imagem: 'sem' }], 'objetos:imagem-ficha': ['o09', { imagem: 'com' }],
+  'arquitetos:fechamento': ['o10', {}], 'objetos:fechamento': ['o10', {}], 'elaia:fechamento': ['o10', {}],
+  'estudio:unico': ['o11', {}], 'elaia:unico': ['o11', {}],
+};
+
+/** Converte um card antigo para o universal equivalente. Devolve true se mudou. */
+export function migrarCard(nucleoId, card) {
+  const m = MIGRA[`${nucleoId}:${card.modelo}`];
+  if (!m) return false;
+  card.modelo = m[0];
+  card.opcoes = { ...m[1], ...(card.opcoes || {}) };
+  const c = card.campos || {};
+  if (c.rotulo && !c.linha && UNIV_POR_ID[m[0]].grupo === 'capa') c.linha = c.rotulo; // autoria do Estúdio vira linha
+  if (m[0] === 'o06' && c.rotulo) delete c.rotulo;
+  return true;
+}
+
+/** Opções do card, com os padrões do modelo para o núcleo. */
+export function opcoesDe(modelo, card, n) {
+  const o = {};
+  for (const d of modelo.opcoes || []) {
+    const pad = typeof d.padrao === 'function' ? d.padrao(n) : d.padrao;
+    o[d.k] = card?.opcoes?.[d.k] ?? pad;
+  }
+  return o;
+}
+
+// ---------------------------------------------------------------------------
+
+/** Catálogo de cada núcleo: os universais (O-01…O-11) seguidos dos modelos específicos do núcleo. */
+export const CATALOGO = {
+  estudio: [...UNIVERSAIS, ...ESTUDIO],
+  arquitetos: [...UNIVERSAIS, ...ARQUITETOS],
+  objetos: [...UNIVERSAIS, ...OBJETOS],
+  elaia: [...UNIVERSAIS, ...ELAIA],
+};
 
 /** Sequências de abertura de cada núcleo (seguem os carrosséis de referência). */
 export const SEQUENCIAS = {
-  estudio: ['capa', 'vertical-8-4', 'imagem-legenda', 'vertical-4-8', 'janela', 'abertura-ficha'],
-  arquitetos: ['capa', 'vista', 'tese', 'processo', 'amplitude', 'ficha', 'fechamento'],
-  objetos: ['capa', 'painel-imagem', 'uso-janela', 'processo', 'desenho', 'imagem-ficha', 'fechamento'],
-  elaia: ['capa', 'tese', 'citacao', 'imagem-titulo-base', 'imagem-coluna', 'imagem-titulo-topo', 'titulo-imagem', 'imagem-ficha', 'fechamento'],
+  estudio: ['o01', 'o05', 'o04', 'janela', 'abertura-ficha', 'o10'],
+  arquitetos: ['o01', 'o03', 'o07', 'amplitude', 'o06', 'o09', 'o10'],
+  objetos: ['o01', 'o03', 'uso-janela', 'o07', 'desenho', 'o09', 'o10'],
+  elaia: ['o01', 'o03', 'citacao', 'o08', 'o06', 'imagem-ficha', 'o10'],
 };
 
 /**
@@ -1130,6 +962,7 @@ const NUMERACAO = {
 };
 const SIGLAS = { estudio: 'OE', arquitetos: 'OA', objetos: 'OO', elaia: 'EL' };
 export function codigoDe(nucleoId, modeloId) {
+  if (UNIV_POR_ID[modeloId]) return UNIV_POR_ID[modeloId].cod;
   const i = NUMERACAO[nucleoId]?.indexOf(modeloId) ?? -1;
   return i < 0 ? '' : `${SIGLAS[nucleoId]}-${String(i + 1).padStart(2, '0')}`;
 }
@@ -1190,13 +1023,24 @@ export function colorirPontos(card) {
   });
 }
 
+const resolverExemplo = (m, nid) => (typeof m?.exemplo === 'function' ? m.exemplo(nid) : { ...(m?.exemplo || {}) });
 export function exemploDe(nucleoId, modeloId) {
-  return { ...(modeloDe(nucleoId, modeloId)?.exemplo || {}) };
+  return resolverExemplo(modeloDe(nucleoId, modeloId), nucleoId);
+}
+
+/** Áreas de imagem que o card usa de fato (algumas opções escondem slots). */
+export function slotsDe(nucleoId, card) {
+  const m = modeloDe(nucleoId, card.modelo);
+  const todos = Object.entries(m.slots || {});
+  if (!m.slotsAtivos) return todos;
+  const ops = opcoesDe(m, card, { id: nucleoId });
+  const ativos = m.slotsAtivos({ op: (k) => ops[k] });
+  return todos.filter(([s]) => ativos.includes(s));
 }
 
 /** Grupo do modelo no painel direito. */
-const CAPAS = new Set(['capa', 'capa-painel', 'capa-papel', 'capa-tres', 'capa-centro']);
-const FECHAMENTOS = new Set(['fechamento', 'tipografico-ficha']);
+const CAPAS = new Set();
+const FECHAMENTOS = new Set(['tipografico-ficha']);
 export const GRUPOS = [
   ['capa', 'Capas'],
   ['corpo', 'Corpo'],
@@ -1204,6 +1048,7 @@ export const GRUPOS = [
   ['unico', 'Posts únicos'],
 ];
 export function grupoDe(m) {
+  if (m.grupo) return m.grupo;
   if (m.unico) return 'unico';
   if (CAPAS.has(m.id)) return 'capa';
   if (FECHAMENTOS.has(m.id)) return 'fechamento';

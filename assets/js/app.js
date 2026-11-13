@@ -3,7 +3,7 @@
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, codigoDe, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
 } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
@@ -17,7 +17,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = (p = '') => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const VERSAO = 3;
+const VERSAO = 4; // 4: modelos universais (O-01…O-11) com opções por card
 /** Ícone (i): o texto de ajuda aparece ao pousar o mouse. */
 const info = (txt) => (txt ? ` <span class="info" tabindex="0" data-info="${esc(txt)}">i</span>` : '');
 
@@ -331,6 +331,9 @@ async function abrirPublicacao(id) {
   await carregarImagens(p);
   pub = p;
   pub.ativo = Math.min(pub.ativo || 0, pub.cards.length - 1);
+  // cards de versões anteriores → modelos universais com as opções equivalentes
+  const migrou = pub.cards.map((c) => migrarCard(pub.nucleo, c)).some(Boolean);
+  if (migrou || (pub.versao || 0) < VERSAO) { pub.versao = VERSAO; salvar(); }
   mostrar('editor');
   status(pendente() ? 'pendente' : 'salvo', pub.salvoEm);
   renderEditor();
@@ -385,8 +388,9 @@ function renderEditor() {
 // ---- Informações padrão ---------------------------------------------------
 
 const CAMPOS_GLOBAIS = [
-  { grupo: 'Publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
-    { k: 'projeto', rot: 'Nome da publicação', dica: 'Cabeçalho à direita (no Elaia, depois de "Escrito por"). Também nomeia os arquivos.' },
+  { grupo: 'Dados da publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
+    { k: '__titulo', rot: 'Nome da publicação', dica: 'Identifica a publicação no arquivo e nomeia os arquivos exportados. Não aparece no card.' },
+    { k: 'projeto', rot: 'Rótulo do cabeçalho', rotElaia: 'Autoria', dica: 'Texto do canto superior direito dos cards.', dicaElaia: 'Canto superior direito dos cards, depois do texto fixo "Escrito por".' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
     { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)', dica: 'Canto inferior direito, com seta para o próximo card. No último card o canto fica vazio.' },
     { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
@@ -406,24 +410,25 @@ function renderGlobais() {
   const cor = tintaSobre(n.painel);
   const nomeCor = (hex) => ({ [COR.ardosia]: 'Ardósia', [COR.areia]: 'Areia', [COR.grafite]: 'Grafite', [COR.pessego]: 'Pêssego', [COR.terra]: 'Terra', [COR.papel]: 'Papel' }[hex] || hex);
   const amostra = (c) => `<span class="amostra" style="background:${c}"></span>`;
-  const temFechamento = modelosDo(n.id).some((m) => m.id === 'fechamento');
   const grupo = (grp) => {
     let h = `<div class="grupo"><h3>${grp.grupo}${info(grp.dica)}</h3>`;
     for (const c of grp.campos) {
       if (c.tipo === 'check') {
         h += `<label class="check"><input type="checkbox" data-k="${c.k}" ${g[c.k] ? 'checked' : ''}> ${c.rot}${info(c.dica)}</label>`;
       } else {
+        const valor = c.k === '__titulo' ? pub.titulo : g[c.k];
+        const elaia = n.autoria && c.rotElaia;
         const input = c.area
-          ? `<textarea data-k="${c.k}" rows="2">${esc(g[c.k])}</textarea>`
-          : `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(g[c.k])}">`;
-        h += `<label class="campo" data-campo-global="${c.k}"><span>${c.rot}${info(c.dica)}</span>${input}</label>`;
+          ? `<textarea data-k="${c.k}" rows="2">${esc(valor)}</textarea>`
+          : `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${c.k === '__titulo' ? ' placeholder="Ex.: Apto RP 201 · lançamento"' : ''}>`;
+        h += `<label class="campo" data-campo-global="${c.k}"><span>${elaia ? c.rotElaia : c.rot}${info(elaia ? c.dicaElaia : c.dica)}</span>${input}</label>`;
       }
     }
     return h + `</div>`;
   };
   const [pubGrp, fechGrp] = CAMPOS_GLOBAIS;
   $('#globaisPub').innerHTML = grupo(pubGrp);
-  $('#globaisFech').innerHTML = temFechamento ? grupo(fechGrp) : '';
+  $('#globaisFech').innerHTML = grupo(fechGrp);
   $('#registro').innerHTML = `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
     <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
     <dl>
@@ -437,6 +442,13 @@ function renderGlobais() {
 
 let timerGlobais;
 function aoMudarGlobal(k, v) {
+  if (k === '__titulo') {
+    pub.titulo = v;
+    $('#pubTitulo').value = v;
+    document.title = `${tituloDe(pub)} · Universo`;
+    salvar();
+    return;
+  }
   pub.globais[k] = v;
   salvar();
   clearTimeout(timerGlobais);
@@ -497,6 +509,7 @@ function aplicarModelo(id) {
   }
   c.modelo = id;
   c.campos = campos;
+  c.opcoes = {};
   salvar();
   renderTrilho();
   $$('.modelo', $('#modelos')).forEach((b) => b.classList.toggle('ativo', b.dataset.modelo === id));
@@ -509,8 +522,8 @@ function renderImagens() {
   const c = cardAtivo();
   const el = $('#imagens');
   if (!c) { el.innerHTML = ''; return; }
-  const m = modeloDe(pub.nucleo, c.modelo);
-  const slots = Object.entries(m.slots || {});
+  renderOpcoes();
+  const slots = slotsDe(pub.nucleo, c);
   const n = nucleo();
   const dica = slots.length
     ? 'Valem só para este card. Clique numa área vazia do card para adicionar, arraste um arquivo sobre ela ou arraste a imagem para reenquadrar.'
@@ -536,12 +549,42 @@ function renderImagens() {
         <button data-acao="remover" data-slot="${s}">Remover</button>
         ${trat}
       </div>
-      <label class="faixa">Zoom <input type="range" min="1" max="3" step="0.01" value="${im.z ?? 1}" data-faixa="z" data-slot="${s}"><output>${Math.round((im.z ?? 1) * 100)}%</output></label>
-      <label class="faixa">Horiz. <input type="range" min="0" max="100" step="0.5" value="${im.x ?? 50}" data-faixa="x" data-slot="${s}"><output>${Math.round(im.x ?? 50)}</output></label>
-      <label class="faixa">Vert. <input type="range" min="0" max="100" step="0.5" value="${im.y ?? 50}" data-faixa="y" data-slot="${s}"><output>${Math.round(im.y ?? 50)}</output></label>
+      ${FAIXAS.map(([f, rot, min, max, passo, pad, unid]) => {
+        const v = im[f] ?? pad;
+        const mostrado = f === 'z' ? Math.round(v * 100) : Math.round(v * 10) / 10;
+        return `<label class="faixa">${rot} <input type="range" min="${min}" max="${max}" step="${passo}" value="${v}" data-faixa="${f}" data-slot="${s}">
+          <span class="num"><input type="number" min="${f === 'z' ? min * 100 : min}" max="${f === 'z' ? max * 100 : max}" step="${f === 'z' ? 1 : 0.5}" value="${mostrado}" data-num="${f}" data-slot="${s}" aria-label="${rot}">${unid}</span></label>`;
+      }).join('')}
     </div>`;
   }
   el.innerHTML = h;
+}
+
+// [campo, rótulo, mín, máx, passo da barra, padrão, unidade] — o zoom aparece em %
+const FAIXAS = [
+  ['z', 'Zoom', 1, 3, 0.01, 1, '%'],
+  ['x', 'Horiz.', 0, 100, 0.5, 50, ''],
+  ['y', 'Vert.', 0, 100, 0.5, 50, ''],
+];
+
+// ---- Personalização do card (opções do modelo) ------------------------------
+
+function renderOpcoes() {
+  const c = cardAtivo();
+  const el = $('#opcoes');
+  const m = c && modeloDe(pub.nucleo, c.modelo);
+  if (!m?.opcoes?.length) {
+    el.innerHTML = '';
+    el.hidden = true;
+    return;
+  }
+  const ops = opcoesDe(m, c, nucleo());
+  el.hidden = false;
+  el.innerHTML = `<h3>Personalização do card <span class="card-tag">${String(pub.ativo + 1).padStart(2, '0')}</span>
+      <span class="cod">${codigoDe(pub.nucleo, m.id)}</span>${info('Opções de composição deste card. A identidade (cores, véu, selo, tratamento) vem do núcleo.')}</h3>
+    ${m.opcoes.map((d) => `<div class="opcao"><span>${d.rot}</span>
+      <div class="seg" role="group" aria-label="${d.rot}">${d.valores.map(([v, rot]) =>
+        `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${rot}</button>`).join('')}</div></div>`).join('')}`;
 }
 
 function atualizarImgNoCard(cardId, slot) {
@@ -898,7 +941,12 @@ function ligarEventos() {
   });
 
   // Editor: título
-  $('#pubTitulo').addEventListener('input', (e) => { pub.titulo = e.target.value; salvar(); });
+  $('#pubTitulo').addEventListener('input', (e) => {
+    pub.titulo = e.target.value;
+    const campo = $('#globais [data-k="__titulo"]');
+    if (campo) campo.value = pub.titulo;
+    salvar();
+  });
 
   // Informações padrão
   const glob = $('#globais');
@@ -938,14 +986,36 @@ function ligarEventos() {
     renderImagens();
   });
   imgs.addEventListener('input', (e) => {
-    const f = e.target.dataset.faixa;
+    const f = e.target.dataset.faixa || e.target.dataset.num;
     if (!f) return;
     const c = cardAtivo();
-    const im = c.imgs[e.target.dataset.slot];
-    im[f] = Number(e.target.value);
-    e.target.nextElementSibling.textContent = f === 'z' ? Math.round(im.z * 100) + '%' : Math.round(im[f]);
-    atualizarImgNoCard(c.id, e.target.dataset.slot);
+    const s = e.target.dataset.slot;
+    const im = c.imgs[s];
+    const [, , min, max, , pad] = FAIXAS.find((x) => x[0] === f);
+    const label = e.target.closest('.faixa');
+    if (e.target.dataset.faixa) {
+      im[f] = Number(e.target.value);
+      label.querySelector('[data-num]').value = f === 'z' ? Math.round(im.z * 100) : Math.round(im[f] * 10) / 10;
+    } else {
+      // valor digitado: zoom em %, posições de 0 a 100
+      const bruto = parseFloat(String(e.target.value).replace(',', '.'));
+      if (Number.isNaN(bruto)) return;
+      const v = f === 'z' ? bruto / 100 : bruto;
+      im[f] = Math.max(min, Math.min(max, v ?? pad));
+      label.querySelector('[data-faixa]').value = im[f];
+    }
+    atualizarImgNoCard(c.id, s);
     salvar();
+  });
+  // Opções do card
+  $('#opcoes').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-op]');
+    if (!b) return;
+    const c = cardAtivo();
+    c.opcoes = { ...(c.opcoes || {}), [b.dataset.op]: b.dataset.v };
+    salvar();
+    renderTrilho();
+    renderImagens();
   });
 
   // Barra

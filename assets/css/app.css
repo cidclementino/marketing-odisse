@@ -242,7 +242,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .img-acoes button { border: 1px solid var(--linha-2); background: var(--papel); border-radius: 5px; font-size: 11.5px; padding: 4px 8px; }
 .img-acoes button.ativo { background: var(--ardosia); color: var(--papel); border-color: var(--ardosia); }
 .img-acoes button:hover { border-color: var(--ardosia-2); }
-.faixa { display: grid; grid-template-columns: 44px 1fr 34px; align-items: center; gap: 8px; font-size: 11px; margin-top: 6px; }
+.faixa { display: grid; grid-template-columns: 44px 1fr 62px; align-items: center; gap: 8px; font-size: 11px; margin-top: 6px; }
 .faixa input { width: 100%; accent-color: var(--ardosia); }
 .faixa output { text-align: right; color: var(--ardosia-2); }
 .dica { font-size: 11px; color: var(--ardosia-2); margin: 8px 0 0; line-height: 1.4; }
@@ -763,3 +763,16 @@ body:not(.vista-metricas) .metricas { display: none; }
 
 /* Código de referência do modelo no painel direito (OA-06…) */
 .modelo .cod { align-self: flex-start; font: 600 10.5px/1 ui-monospace, Consolas, monospace; background: var(--ardosia); color: var(--papel); border-radius: 4px; padding: 3px 5px; margin-top: 2px; }
+
+/* Valor digitável ao lado das barras de zoom e posição */
+.faixa .num { display: flex; align-items: center; gap: 2px; justify-content: flex-end; color: var(--ardosia-2); }
+.faixa .num input { width: 46px; padding: 2px 4px; font: inherit; font-size: 11px; text-align: right; border: 1px solid var(--linha-2); border-radius: 4px; background: var(--papel); color: var(--ardosia); accent-color: auto; }
+
+/* Personalização do card */
+.opcoes { margin: 4px -20px 0; padding: 14px 20px 8px; border-top: 1px solid var(--linha); }
+.opcoes h3 { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
+.opcoes h3 .cod { white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace; background: var(--ardosia); color: var(--papel); border-radius: 4px; padding: 3px 5px; letter-spacing: 0; }
+.opcoes .opcao { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; font-size: 12px; }
+.opcoes .opcao > span { font-weight: 550; }
+.opcoes .seg { align-self: flex-start; flex-wrap: wrap; }
+.opcoes .seg button { padding: 5px 10px; font-size: 12px; }
