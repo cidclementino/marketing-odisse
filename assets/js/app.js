@@ -3,7 +3,7 @@
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
 } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
@@ -388,13 +388,13 @@ const CAMPOS_GLOBAIS = [
   { grupo: 'Publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
     { k: 'projeto', rot: 'Nome da publicação', dica: 'Cabeçalho à direita (no Elaia, depois de "Escrito por"). Também nomeia os arquivos.' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
-    { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)', dica: 'Canto inferior direito, com seta para o próximo card. No último card aparece o site.' },
+    { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)', dica: 'Canto inferior direito, com seta para o próximo card. No último card o canto fica vazio.' },
     { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
   ] },
   { grupo: 'Fechamento e contatos', dica: 'Aparecem no card de fechamento. Valem para toda a publicação.', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
     { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
-    { k: 'site', rot: 'Site', dica: 'Também aparece no canto inferior direito do último card.' },
+    { k: 'site', rot: 'Site' },
     { k: 'telefone', rot: 'Telefone' },
     { k: 'email', rot: 'E-mail' },
   ] },
@@ -423,9 +423,7 @@ function renderGlobais() {
   };
   const [pubGrp, fechGrp] = CAMPOS_GLOBAIS;
   $('#globaisPub').innerHTML = grupo(pubGrp);
-  $('#globaisFech').innerHTML = temFechamento
-    ? grupo(fechGrp)
-    : grupo({ grupo: 'Site', dica: 'Aparece no canto inferior direito do último card.', campos: fechGrp.campos.filter((c) => c.k === 'site') });
+  $('#globaisFech').innerHTML = temFechamento ? grupo(fechGrp) : '';
   $('#registro').innerHTML = `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
     <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
     <dl>
@@ -468,6 +466,7 @@ function renderModelos() {
             card: { id: 'm-' + m.id, modelo: m.id, campos: exemploDe(n.id, m.id), imgs: {} },
             indice: 0, total: 8, nucleo: n, globais: g, modo: 'miniatura', fonteImagem,
           })}</div></div>
+          <span class="cod">${codigoDe(n.id, m.id)}</span>
           <b>${m.nome}${info(m.desc)}</b>
         </button>`).join('')}</div>
     </details>`;
@@ -999,6 +998,20 @@ function ligarEventos() {
   $('#btExportarTudo').onclick = () => exportarTudo().catch(erroExport);
   $('#navEsq').onclick = () => irPara(pub.ativo - 1);
   $('#navDir').onclick = () => irPara(pub.ativo + 1);
+  // Roda do mouse (ou trackpad) passa de card em card; um passo por gesto.
+  let rodaAcum = 0, rodaTrava = 0;
+  $('#trilhoWrap').addEventListener('wheel', (e) => {
+    if (!pub || e.ctrlKey) return; // Ctrl+roda continua sendo zoom do navegador
+    e.preventDefault();
+    const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    const agora = performance.now();
+    if (agora < rodaTrava) return;
+    rodaAcum += e.deltaMode === 1 ? d * 40 : d;
+    if (Math.abs(rodaAcum) < 50) return;
+    irPara(pub.ativo + Math.sign(rodaAcum));
+    rodaAcum = 0;
+    rodaTrava = agora + 260;
+  }, { passive: false });
   $('#pontos').addEventListener('click', (e) => {
     const b = e.target.closest('[data-ir]');
     if (b) irPara(Number(b.dataset.ir));

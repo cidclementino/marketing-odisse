@@ -4,7 +4,7 @@
 
 import { TEXTO, ESPACO, GRUPOS_ESPACO, FORMATOS, corpoMin, corpoMax } from './padroes.js';
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo } from './nucleos.js';
-import { modelosDo, renderCard, exemploDe, ajustarLayout, GRUPOS, grupoDe, LARG } from './templates.js';
+import { modelosDo, codigoDe, renderCard, exemploDe, ajustarLayout, GRUPOS, grupoDe, LARG } from './templates.js';
 import { tintaSobre } from './nucleos.js';
 import { mark } from './marks.js';
 
@@ -99,7 +99,7 @@ function panorama() {
       if (!itens.length) return '';
       return `<h3>${gnome} <span class="cont-p">${itens.length}</span></h3>
         <div class="pano-grade">${itens.map(({ m, i }) => {
-          const cod = `${n.sigla.toUpperCase()}-${String(i + 1).padStart(2, '0')}`;
+          const cod = codigoDe(nid, m.id);
           return `<figure class="pano-item">
             <div class="pano-mini"><div class="card">${renderCard({
               card: { id: 'pano', modelo: m.id, campos: exemploDe(nid, m.id), imgs: {} },

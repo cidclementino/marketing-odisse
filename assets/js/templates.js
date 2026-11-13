@@ -47,6 +47,8 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     n, g, editavel,
 
     campo(chave, classe, estilo = '', opc = {}) {
+      // O rótulo de contexto (ex.: "A VISTA") só existe em posts únicos e fechamentos.
+      if (chave === 'rotulo' && !['unico', 'fechamento'].includes(grupoDe(modelo))) return '';
       const valor = card.campos?.[chave] ?? '';
       // opc.fit = altura máxima da área; o corpo vai do máximo ao mínimo do estilo (padroes.js)
       let fit = '';
@@ -60,9 +62,10 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       return `<div class="${classe}" style="${estilo}"${fit}${opc.attrs || ''}${attrs}>${valor}</div>`;
     },
 
-    /** Texto de apoio: até 5 linhas; se passar, alarga a caixa (meia tela → 3/4 → tela inteira). */
+    /** Texto de apoio: até 5 linhas; se passar, alarga a caixa (3/4 → tela inteira).
+     *  Não há mais meia tela: col 7 começa em 3/4 (coluna 5). */
     apoio(chave, col, estilo = '') {
-      const estagios = [7, 5, 1].filter((c) => c <= col);
+      const estagios = [5, 1].filter((c) => c <= Math.max(col, 5));
       return t.campo(chave, 't-texto', `margin-left:${X(col) - M}px;${estilo}`, { attrs: ` data-cresce="${estagios.join(',')}"` });
     },
 
@@ -104,6 +107,12 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       let dir;
       if (unico) {
         dir = t.campo('aviso', 'cab-txt', '', { ph: 'Aviso' });
+      } else if (modelo.legendaTopo) {
+        // Estúdio: a legenda (rótulo + linha) ocupa o lugar do nome da publicação.
+        const r = t.campo('legR', 't-rotulo', '', { ph: 'Rótulo' });
+        const l = t.campo('legT', 't-legenda', `margin-top:${px('justo')}`, { ph: 'Legenda: quem, onde, quando.' });
+        return `<div class="cab t-rotulo" style="left:${M}px;color:${corEsq}">${esc(n.cabecalho)}</div>
+          <div class="cab dir legenda-topo" style="right:${M}px;color:${corDir}">${r}${l}</div>`;
       } else {
         const nome = g.projeto || '';
         const pre = n.autoria && nome ? `${esc(n.autoria)} ` : '';
@@ -113,18 +122,12 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         <div class="cab t-rotulo dir" style="right:${M}px;color:${corDir}">${dir}</div>`;
     },
 
-    /** Canto inferior direito, na altura do selo: contagem com seta para o próximo card;
-     *  no último card, o site do núcleo. A cor vem de colorirPontos (pelo fundo). */
+    /** Canto inferior direito, na altura do selo: contagem com seta para o próximo card.
+     *  No último card o canto fica vazio. A cor vem de colorirPontos (pelo fundo). */
     contagem() {
       const ultimo = indice === total - 1;
-      let h = '';
-      if (ultimo) {
-        if (!g.site) return '';
-        h = editavel ? `<span data-global="site" title="Informação padrão — edite no painel à esquerda">${esc(g.site)}</span>` : esc(g.site);
-      } else {
-        if (!g.contador) return '';
-        h = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${SETA}`;
-      }
+      if (ultimo || !g.contador) return '';
+      const h = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${SETA}`;
       return `<div class="contagem t-rotulo" style="right:${M}px;top:${ALT - E.selo - 12}px">${h}</div>`;
     },
 
@@ -134,6 +137,11 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       const nome = unico ? 'mao' : n.selo;
       const h = nome === 'mao' ? 72 : 64;
       return `<div class="selo" style="top:${ALT - E.selo - h / 2}px;color:${cor}">${mark(nome, h)}</div>`;
+    },
+
+    /** Linha de contexto da capa: uma linha de texto, sempre abaixo do título (opcional). */
+    linha(estilo = '') {
+      return t.campo('linha', 't-texto linha', `margin-top:${px('assinatura')};${estilo}`, { ph: 'Linha de contexto (opcional)' });
     },
 
     /** Assinatura: selo 46 px + rótulo (campo do card). */
@@ -155,6 +163,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     },
 
     legenda(cor, largura = 380) {
+      if (modelo.legendaTopo) return '';
       const r = t.campo('legR', 't-rotulo', '', { ph: 'Rótulo' });
       const l = t.campo('legT', 't-legenda', '', { ph: 'Legenda: quem, onde, quando.' });
       if (!r && !l) return '';
@@ -212,16 +221,16 @@ const processo = (exemplo) => ({
 const capaPapel = ({ exemplo, imgY = 562, imgH = 589, fit = 300 }) => ({
   id: 'capa-papel',
   nome: 'Capa sobre papel',
-  desc: 'Título no alto, faixa de imagem e assinatura sob um filete.',
+  desc: 'Título e linha de contexto no alto, faixa de imagem e selo no pé.',
   slots: { a: 'Imagem' },
   exemplo,
   render(t) {
+    // bloco do título: de 150 até um Bloco acima da imagem; ~80 px reservados para a linha de contexto
+    const h = imgY - E.bloco - 150;
     return `${t.fundo(COR.papel)}${t.cab(A)}
-      ${t.fluxo(M, 190, W12, imgY - 230, A, t.campo('titulo', 't-capa', '', { fit }), 'fim')}
+      ${t.fluxo(M, 150, W12, h, A, `${t.campo('titulo', 't-capa', '', { fit: Math.min(fit, h - 80) })}${t.linha()}`, 'fim')}
       ${t.img('a', 0, imgY, LARG, imgH)}
-      ${t.regra(M, 1172, W12, A)}
-      ${t.assinatura(A, `position:absolute;${pos(M, 1172 + E.filete)}`)}
-      ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${A}`)}`;
+      ${t.selo(A)}`;
   },
 });
 
@@ -308,38 +317,38 @@ const ESTUDIO = [
   {
     id: 'capa',
     nome: 'Capa',
-    desc: 'Imagem inteira, autoria e título no pé.',
+    desc: 'Imagem inteira, título e linha de contexto no pé.',
     slots: { a: 'Imagem da capa' },
-    exemplo: { rotulo: 'Cid Clementino · Nathalia Linhares', titulo: 'Reserva Criativa.' },
+    exemplo: { titulo: 'Reserva Criativa.', linha: 'Cid Clementino e Nathalia Linhares' },
     render(t) {
       return `${t.img('a', 0, 0, LARG, ALT)}
         ${t.veuTopo()}${t.veuBase(760, 0.85)}
         ${t.cab(B)}
         ${t.fluxo(M, 180, W12, 1070, B, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-capa', '', { fit: 520 })}`, 'fim')}
+          ${t.campo('titulo', 't-capa', '', { fit: 440 })}
+          ${t.linha()}`, 'fim')}
         ${t.selo(B)}`;
     },
   },
   {
     id: 'capa-painel',
     nome: 'Capa em painel',
-    desc: 'Título sobre ardósia e duas imagens lado a lado.',
+    desc: 'Título e linha de contexto sobre ardósia; duas imagens lado a lado.',
     slots: { a: 'Imagem esquerda', b: 'Imagem direita' },
-    exemplo: { titulo: 'Reserva Criativa.', rotulo: 'Cid Clementino · Nathalia Linhares', rodape: 'Odisse Arquitetura & Design · Bastidores' },
+    exemplo: { titulo: 'Reserva Criativa.', linha: 'Cid Clementino e Nathalia Linhares' },
     render(t) {
       return `${t.fundo(A)}${t.cab(B)}
         ${t.fluxo(M, 200, W12, 360, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 290 })}
-          ${t.campo('rotulo', 't-rotulo', `margin-top:${px('assinatura')}`)}`)}
+          ${t.campo('titulo', 't-capa', '', { fit: 250 })}
+          ${t.linha()}`)}
         ${t.img('a', 0, 580, C6 - h2, 590)}
         ${t.img('b', C6 + h2, 580, LARG - C6 - h2, 590)}
-        ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1206)}color:${B}`)}
         ${t.selo(B)}`;
     },
   },
   {
     id: 'imagem-legenda',
+    legendaTopo: true,
     nome: 'Imagem + legenda',
     desc: 'Imagem inteira com legenda no pé: rótulo e uma linha.',
     slots: { a: 'Imagem inteira' },
@@ -351,6 +360,7 @@ const ESTUDIO = [
   },
   {
     id: 'vertical-8-4',
+    legendaTopo: true,
     nome: 'Vertical 8 | 4',
     desc: 'Pessoa e lugar: duas imagens com corte entre as colunas 8 e 9.',
     slots: { a: 'Imagem larga (1–8)', b: 'Imagem estreita (9–12)' },
@@ -365,6 +375,7 @@ const ESTUDIO = [
   },
   {
     id: 'vertical-4-8',
+    legendaTopo: true,
     nome: 'Vertical 4 | 8',
     desc: 'Duas imagens com corte entre as colunas 4 e 5.',
     slots: { a: 'Imagem estreita (1–4)', b: 'Imagem larga (5–12)' },
@@ -379,6 +390,7 @@ const ESTUDIO = [
   },
   {
     id: 'janela',
+    legendaTopo: true,
     nome: 'Janela',
     desc: 'Imagem inteira com outra inserida nas colunas 8–12.',
     slots: { a: 'Imagem de fundo', b: 'Janela (8–12)' },
@@ -459,83 +471,35 @@ const ARQUITETOS = [
   {
     id: 'capa',
     nome: 'Capa',
-    desc: 'Render inteiro, título branco e assinatura no pé.',
+    desc: 'Render inteiro, título branco e linha de contexto no pé.',
     slots: { a: 'Imagem da capa' },
-    exemplo: { titulo: 'Um horizonte comum.', assin: 'Odisse Arquitetos · Projeto de interiores' },
+    exemplo: { titulo: 'Um horizonte comum.', linha: 'Projeto de interiores do Apto RP 201' },
     render(t) {
       return `${t.img('a', 0, 0, LARG, ALT)}
         ${t.veuTopo()}${t.veuBase(820, 0.8)}
         ${t.cab(B)}
-        ${t.fluxo(M, 180, W12, 1060, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 560 })}
-          ${t.assinatura(B, `margin-top:${px('assinatura')}`)}`, 'fim')}`;
+        ${t.fluxo(M, 180, W12, 1070, B, `
+          ${t.campo('titulo', 't-capa', '', { fit: 520 })}
+          ${t.linha()}`, 'fim')}
+        ${t.selo(B)}`;
     },
   },
   capaPapel({
-    imgY: 356, imgH: 795, fit: 120,
-    exemplo: { titulo: 'Um horizonte comum.', assin: 'Odisse Arquitetos · Apto RP 201', rodape: 'Projeto de interiores' },
+    imgY: 420, imgH: 731, fit: 140,
+    exemplo: { titulo: 'Um horizonte comum.', linha: 'Projeto de interiores do Apto RP 201' },
   }),
   {
     id: 'capa-tres',
     nome: 'Capa em areia',
-    desc: 'Título grande no painel areia e três imagens em faixa.',
+    desc: 'Título grande e linha de contexto no painel areia; três imagens em faixa.',
     slots: { a: 'Imagem 1', b: 'Imagem 2', c: 'Imagem 3' },
-    exemplo: { titulo: 'Um<br>horizonte<br>comum.', assin: 'Odisse Arquitetos · Apto RP 201' },
+    exemplo: { titulo: 'Um<br>horizonte<br>comum.', linha: 'Projeto de interiores do Apto RP 201' },
     render(t) {
       return `${t.fundo(COR.areia)}${t.cab(A)}
-        ${t.fluxo(M, 200, W12, 520, A, t.campo('titulo', 't-capa', '', { fit: 470 }))}
+        ${t.fluxo(M, 200, W12, 520, A, `${t.campo('titulo', 't-capa', '', { fit: 400 })}${t.linha()}`)}
         ${t.img('a', 0, 770, C4 - h2, 360)}
         ${t.img('b', C4 + h2, 770, C8 - C4 - CORTE, 360)}
         ${t.img('c', C8 + h2, 770, LARG - C8 - h2, 360)}
-        ${t.assinatura(A, `position:absolute;${pos(M, 1130 + E.assinatura)}`)}`;
-    },
-  },
-  {
-    id: 'abertura-projeto',
-    nome: 'Abertura do projeto',
-    desc: 'Imagem no alto, nome do projeto e duas colunas: problema e solução.',
-    slots: { a: 'Imagem superior' },
-    exemplo: {
-      rotulo: '(01) O projeto',
-      titulo: 'Apto RP 201',
-      sub: 'Odisse Arquitetos · Projeto de interiores',
-      c1r: 'O problema', c1t: 'O mar era um privilégio recluso à varanda, visto de um único ambiente.',
-      c2r: 'A solução', c2t: 'A planta abre sala, jantar e cozinha para o mesmo horizonte e redistribui a vista.',
-    },
-    render(t) {
-      const col = (i) => `<div style="border-top:1.5px solid ${A};padding-top:${px('filete')}">
-          ${t.campo(`c${i}r`, 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo(`c${i}t`, 't-legenda')}
-        </div>`;
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, 820)}${t.veuTopo()}
-        ${t.cab(B)}
-        ${t.fluxo(M, 820 + E.bloco, W12, 1300 - 820 - E.bloco, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-capa', '', { fit: 130 })}
-          ${t.campo('sub', 't-legenda', `margin-top:${px('proximo')}`)}
-          <div style="display:grid;grid-template-columns:${W(1, 6)}px ${W(7, 12)}px;column-gap:${G}px;margin-top:${px('bloco')}">${col(1)}${col(2)}</div>`)}
-        ${t.selo(A)}`;
-    },
-  },
-  {
-    id: 'tese',
-    nome: 'Tese',
-    desc: 'Rótulo, título e apoio na coluna 7; croqui ou render sangrando embaixo.',
-    slots: { a: 'Imagem inferior' },
-    exemplo: {
-      rotulo: 'A tese',
-      titulo: 'Três ambientes, um ponto de fuga.',
-      texto: 'Sem anteparos entre sala, jantar e cozinha, os três ambientes se voltam para o mesmo horizonte.',
-    },
-    render(t) {
-      return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt' })}
-        ${t.cab(A)}
-        ${t.fluxo(M, TOPO, W12, 700, A, `
-          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
-          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -557,6 +521,27 @@ const ARQUITETOS = [
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
           ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`)}
+        ${t.selo(A)}`;
+    },
+  },
+  {
+    id: 'tese',
+    nome: 'Tese',
+    desc: 'Rótulo, título e apoio na coluna 7; croqui ou render sangrando embaixo.',
+    slots: { a: 'Imagem inferior' },
+    exemplo: {
+      rotulo: 'A tese',
+      titulo: 'Três ambientes, um ponto de fuga.',
+      texto: 'Sem anteparos entre sala, jantar e cozinha, os três ambientes se voltam para o mesmo horizonte.',
+    },
+    render(t) {
+      return `${t.fundo(COR.papel)}
+        ${t.img('a', 0, 640, LARG, 800, { segue: 'txt' })}
+        ${t.cab(A)}
+        ${t.fluxo(M, TOPO, W12, 700, A, `
+          ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
+          ${t.campo('titulo', 't-titulo', '', { fit: 230 })}
+          ${t.apoio('texto', 7, `margin-top:${px('bloco')}`)}`, '', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -709,15 +694,29 @@ const OBJETOS = [
   {
     id: 'capa',
     nome: 'Capa',
-    desc: 'Foto de estúdio inteira, nome da peça no alto e assinatura no pé.',
+    desc: 'Foto de estúdio inteira, nome da peça e linha de contexto no alto.',
     slots: { a: 'Foto da peça' },
-    exemplo: { titulo: 'Vórtice I', assin: 'Odisse Objetos · Receptáculo' },
+    exemplo: { titulo: 'Vórtice I', linha: 'Receptáculo escultórico, impresso em 3D' },
     render(t) {
       return `${t.img('a', 0, 0, LARG, ALT, { fundo: '#EDEDEB' })}
         ${t.veuBase(520, 0.7)}
         ${t.cab(A)}
-        ${t.fluxo(M, 180, W12, 360, A, t.campo('titulo', 't-capa', '', { fit: 320 }))}
-        ${t.assinatura(B, `position:absolute;${pos(M, 1198)}`)}`;
+        ${t.fluxo(M, 180, W12, 360, A, `${t.campo('titulo', 't-capa', '', { fit: 250 })}${t.linha()}`)}
+        ${t.selo(B)}`;
+    },
+  },
+  {
+    id: 'capa-centro',
+    nome: 'Capa centralizada',
+    desc: 'Como a Capa (OO-01), com nome da peça e linha de contexto centralizados.',
+    slots: { a: 'Foto da peça' },
+    exemplo: { titulo: 'Vórtice I', linha: 'Receptáculo escultórico, impresso em 3D' },
+    render(t) {
+      return `${t.img('a', 0, 0, LARG, ALT, { fundo: '#EDEDEB' })}
+        ${t.veuBase(520, 0.7)}
+        ${t.cab(A)}
+        ${t.fluxo(M, 180, W12, 360, A, `${t.campo('titulo', 't-capa', 'text-align:center', { fit: 250 })}${t.linha('text-align:center')}`)}
+        ${t.selo(B)}`;
     },
   },
   {
@@ -899,28 +898,26 @@ const ELAIA = [
   {
     id: 'capa',
     nome: 'Capa',
-    desc: 'Imagem inteira, título, assinatura e linha da série no pé.',
+    desc: 'Imagem inteira, título e linha de contexto no pé.',
     slots: { a: 'Imagem da capa' },
     exemplo: {
       titulo: 'Backrooms, Labirinto Domesticado.',
-      assin: 'Elaia · Ensaio de Nathalia Linhares',
-      rodape: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
+      linha: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
     },
     render(t) {
       return `${t.img('a', 0, 0, LARG, ALT)}
         ${t.veuTopo()}${t.veuBase(900, 0.8)}
         ${t.cab(B)}
-        ${t.fluxo(M, 180, W12, 1062, B, `
-          ${t.campo('titulo', 't-capa', '', { fit: 600 })}
-          ${t.assinatura(B, `margin-top:${px('assinatura')}`)}`, 'fim')}
-        ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${B}`)}`;
+        ${t.fluxo(M, 180, W12, 1070, B, `
+          ${t.campo('titulo', 't-capa', '', { fit: 520 })}
+          ${t.linha()}`, 'fim')}
+        ${t.selo(B)}`;
     },
   },
   capaPapel({
     exemplo: {
       titulo: 'Backrooms,<br>Labirinto<br>Domesticado',
-      assin: 'Elaia · Ensaio de Nathalia Linhares',
-      rodape: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
+      linha: 'A partir de Backrooms, Labirinto Domesticado: Parte I',
     },
   }),
   {
@@ -1115,10 +1112,27 @@ export const CATALOGO = { estudio: ESTUDIO, arquitetos: ARQUITETOS, objetos: OBJ
 /** Sequências de abertura de cada núcleo (seguem os carrosséis de referência). */
 export const SEQUENCIAS = {
   estudio: ['capa', 'vertical-8-4', 'imagem-legenda', 'vertical-4-8', 'janela', 'abertura-ficha'],
-  arquitetos: ['capa', 'abertura-projeto', 'tese', 'processo', 'vista', 'amplitude', 'ficha', 'fechamento'],
+  arquitetos: ['capa', 'vista', 'tese', 'processo', 'amplitude', 'ficha', 'fechamento'],
   objetos: ['capa', 'painel-imagem', 'uso-janela', 'processo', 'desenho', 'imagem-ficha', 'fechamento'],
   elaia: ['capa', 'tese', 'citacao', 'imagem-titulo-base', 'imagem-coluna', 'imagem-titulo-topo', 'titulo-imagem', 'imagem-ficha', 'fechamento'],
 };
+
+/**
+ * Códigos de referência fixos: sigla do núcleo + número. A ordem destas listas é a numeração
+ * original (04/11); modelo retirado deixa o número vago (OA-04, Abertura do projeto, saiu em 13/11)
+ * e modelo novo recebe o próximo número.
+ */
+const NUMERACAO = {
+  estudio: ['capa', 'capa-painel', 'imagem-legenda', 'vertical-8-4', 'vertical-4-8', 'janela', 'abertura-ficha', 'tipografico-ficha', 'unico'],
+  arquitetos: ['capa', 'capa-papel', 'capa-tres', null, 'tese', 'vista', 'amplitude', 'pausa', 'referencia', 'duas-coluna', 'material', 'vertical-4-8', 'processo', 'ficha', 'fechamento'],
+  objetos: ['capa', 'painel-imagem', 'imagem-painel', 'pausa', 'uso-janela', 'tipografico', 'processo', 'desenho', 'ficha-lateral', 'imagem-ficha', 'fechamento', 'unico-imagem', 'capa-centro'],
+  elaia: ['capa', 'capa-papel', 'tese', 'titulo-imagem', 'imagem-texto', 'imagem-titulo-topo', 'imagem-titulo-base', 'imagem-coluna', 'citacao', 'imagem-ficha', 'fechamento', 'materia-bruta', 'unico'],
+};
+const SIGLAS = { estudio: 'OE', arquitetos: 'OA', objetos: 'OO', elaia: 'EL' };
+export function codigoDe(nucleoId, modeloId) {
+  const i = NUMERACAO[nucleoId]?.indexOf(modeloId) ?? -1;
+  return i < 0 ? '' : `${SIGLAS[nucleoId]}-${String(i + 1).padStart(2, '0')}`;
+}
 
 export function modelosDo(nucleoId) { return CATALOGO[nucleoId] || []; }
 export function modeloDe(nucleoId, id) {
@@ -1181,7 +1195,7 @@ export function exemploDe(nucleoId, modeloId) {
 }
 
 /** Grupo do modelo no painel direito. */
-const CAPAS = new Set(['capa', 'capa-painel', 'capa-papel', 'capa-tres']);
+const CAPAS = new Set(['capa', 'capa-painel', 'capa-papel', 'capa-tres', 'capa-centro']);
 const FECHAMENTOS = new Set(['fechamento', 'tipografico-ficha']);
 export const GRUPOS = [
   ['capa', 'Capas'],

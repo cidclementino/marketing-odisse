@@ -69,6 +69,12 @@
 }
 .card .contagem .seta { display: block; }
 
+/* Linha de contexto da capa: uma linha só */
+.card .t-texto.linha { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Estúdio: legenda no canto superior direito, no lugar do nome da publicação */
+.card .cab.legenda-topo { top: var(--e-cabecalho); z-index: 3; text-align: right; max-width: 460px; display: flex; flex-direction: column; align-items: flex-end; }
+
 /* Selo — rodapé central, faixa y 1340–1408 */
 .card .selo { left: 0; right: 0; display: flex; justify-content: center; z-index: 3; }
 .card .mark { display: block; }
