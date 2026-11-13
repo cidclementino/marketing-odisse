@@ -3,7 +3,7 @@
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
 } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
@@ -389,11 +389,9 @@ function renderEditor() {
 
 const CAMPOS_GLOBAIS = [
   { grupo: 'Dados da publicação', dica: 'Valem para todos os cards desta publicação.', campos: [
-    { k: '__titulo', rot: 'Nome da publicação', dica: 'Identifica a publicação no arquivo e nomeia os arquivos exportados. Não aparece no card.' },
+    { k: '__titulo', rot: 'Nome da publicação' },
     { k: 'projeto', rot: 'Rótulo do cabeçalho', rotElaia: 'Autoria', dica: 'Texto do canto superior direito dos cards.', dicaElaia: 'Canto superior direito dos cards, depois do texto fixo "Escrito por".' },
-    { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date', dica: 'Usada no nome dos arquivos exportados.' },
-    { k: 'contador', tipo: 'check', rot: 'Mostrar contador (03/08)', dica: 'Canto inferior direito, com seta para o próximo card. No último card o canto fica vazio.' },
-    { k: 'selo', tipo: 'check', rot: 'Mostrar selo no rodapé' },
+    { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date' },
   ] },
   { grupo: 'Fechamento e contatos', dica: 'Aparecem no card de fechamento. Valem para toda a publicação.', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
@@ -509,7 +507,7 @@ function aplicarModelo(id) {
   }
   c.modelo = id;
   c.campos = campos;
-  c.opcoes = {};
+  c.opcoes = c.opcoes?.carimbo ? { carimbo: c.opcoes.carimbo } : {}; // o carimbo passa de um modelo para outro
   salvar();
   renderTrilho();
   $$('.modelo', $('#modelos')).forEach((b) => b.classList.toggle('ativo', b.dataset.modelo === id));
@@ -573,16 +571,15 @@ function renderOpcoes() {
   const c = cardAtivo();
   const el = $('#opcoes');
   const m = c && modeloDe(pub.nucleo, c.modelo);
-  if (!m?.opcoes?.length) {
+  if (!m) {
     el.innerHTML = '';
     el.hidden = true;
     return;
   }
   const ops = opcoesDe(m, c, nucleo());
   el.hidden = false;
-  el.innerHTML = `<h3>Personalização do card <span class="card-tag">${String(pub.ativo + 1).padStart(2, '0')}</span>
-      <span class="cod">${codigoDe(pub.nucleo, m.id)}</span>${info('Opções de composição deste card. A identidade (cores, véu, selo, tratamento) vem do núcleo.')}</h3>
-    ${m.opcoes.map((d) => `<div class="opcao"><span>${d.rot}</span>
+  el.innerHTML = `<h3>Personalização do card${info('Opções de composição deste card. A identidade (cores, véu, selo, tratamento) vem do núcleo.')}</h3>
+    ${opcoesDoModelo(m).map((d) => `<div class="opcao"><span>${d.rot}</span>
       <div class="seg" role="group" aria-label="${d.rot}">${d.valores.map(([v, rot]) =>
         `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${rot}</button>`).join('')}</div></div>`).join('')}`;
 }
@@ -636,7 +633,7 @@ function renderTrilho() {
     const lateral = modo === '3' && i !== pub.ativo;
     const kk = lateral ? k * LATERAL : k;
     h += `<div class="peca ${i === pub.ativo ? 'ativa' : ''} ${lateral ? 'lateral' : ''}" data-id="${c.id}" data-i="${i}">
-      <span class="num">${String(i + 1).padStart(2, '0')} · ${modeloDe(pub.nucleo, c.modelo)?.nome || ''}</span>
+      <span class="num">${String(i + 1).padStart(2, '0')} · ${codigoDe(pub.nucleo, c.modelo)}</span>
       <div class="moldura" style="--k:${kk}"><div class="card editar">${renderCard({
         card: c, indice: i, total: pub.cards.length, nucleo: n, globais: pub.globais, modo: 'editar', fonteImagem,
       })}</div>${GUIAS_SVG}</div>

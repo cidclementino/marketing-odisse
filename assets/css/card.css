@@ -52,22 +52,26 @@
 }
 .card .slot.contain img { object-fit: contain; }
 
-/* Cabeçalho — estilo Rótulo (padroes.js); posição: --e-cabecalho do topo */
-.card .cab.t-rotulo {
-  top: var(--e-cabecalho);
+/* Carimbo do cabeçalho — caixa tripartida (núcleo · tema · contagem), estilo Rótulo.
+   Centrada na linha dos pontos; o meio é mais largo. Cor e fundo de cada célula: colorirPontos. */
+.card .carimbo {
+  position: absolute; z-index: 3;
+  display: grid; grid-template-columns: 1fr 1.6fr 1fr;
   white-space: nowrap;
-  z-index: 3;
 }
+.card .carimbo .cel {
+  display: flex; align-items: center; min-width: 0;
+  padding: 0 var(--e-proximo);
+  border: 1.5px solid currentColor; border-left-width: 0;
+  overflow: hidden;
+}
+.card .carimbo .cel.esq { border-left-width: 1.5px; }
+.card .carimbo .cel.meio { justify-content: center; text-align: center; }
+.card .carimbo .cel.dir { justify-content: flex-end; gap: var(--e-proximo); }
+.card .carimbo .seta { display: block; flex: none; }
 
 /* Pontos laterais — 3 de cada lado (cor calculada em colorirPontos) */
 .card .ponto { position: absolute; border-radius: 50%; z-index: 4; pointer-events: none; background: #3F4B57; }
-
-/* Contagem (ou site, no último card) — canto inferior direito, centrada na altura do selo */
-.card .contagem {
-  position: absolute; z-index: 4; white-space: nowrap; line-height: 24px;
-  display: flex; align-items: center; gap: var(--e-proximo);
-}
-.card .contagem .seta { display: block; }
 
 /* Linha de contexto da capa: uma linha só */
 .card .t-texto.linha:not(:empty) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -76,8 +80,8 @@
 .card .t-texto.linha:empty { height: 0; margin-top: 0 !important; overflow: visible; }
 .card .t-capa + .t-texto.linha:empty::before { display: block; padding-top: var(--e-proximo); }
 
-/* Estúdio: legenda no canto superior direito, no lugar do nome da publicação */
-.card .cab.legenda-topo { top: var(--e-cabecalho); z-index: 3; text-align: right; max-width: 460px; display: flex; flex-direction: column; align-items: flex-end; }
+/* Legenda no topo: à direita, logo abaixo do carimbo */
+.card .legenda-topo { position: absolute; z-index: 3; text-align: right; max-width: 460px; display: flex; flex-direction: column; align-items: flex-end; }
 
 /* Selo — rodapé central, faixa y 1340–1408 */
 .card .selo { left: 0; right: 0; display: flex; justify-content: center; z-index: 3; }
@@ -97,7 +101,7 @@
   overflow-wrap: break-word;
 }
 
-.card .cab .cab-txt { display: inline; }
+.card .carimbo .cab-txt { display: inline; }
 .card .ficha-linha.empilhada { grid-template-columns: 1fr; gap: var(--e-justo); }
 .card .ficha.distribuir .ficha-linha { padding: var(--e-filete) 0 var(--e-bloco); }
 .card .ficha-r { padding-right: 20px; }

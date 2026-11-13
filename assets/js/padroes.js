@@ -45,7 +45,7 @@ export const ESPACO = [
   { id: 'assinatura', nome: 'Assinatura', grupo: 'ritmo', v: 32, uso: 'Título ou imagens → assinatura e autoria.' },
   { id: 'bloco', nome: 'Bloco', grupo: 'ritmo', v: 48, uso: 'Entre blocos, sempre o mesmo valor: título → texto, texto → imagem, imagem → texto, texto → ficha, texto → borda do painel.' },
 
-  { id: 'cabecalho', nome: 'Cabeçalho', grupo: 'posicao', v: 38, uso: 'Do topo do card ao cabeçalho (estilo Rótulo).' },
+  { id: 'cabecalho', nome: 'Cabeçalho', grupo: 'posicao', v: 38, uso: 'Do topo do card ao texto do cabeçalho (estilo Rótulo). O cabeçalho é um carimbo tripartido (núcleo · tema · contagem), de margem a margem, com a altura de um Bloco, centrado na linha dos pontos (y 50).' },
   { id: 'topo', nome: 'Início do conteúdo', grupo: 'posicao', v: 128, uso: 'Do topo do card ao primeiro texto, quando não há imagem no alto.' },
   { id: 'selo', nome: 'Selo do rodapé', grupo: 'posicao', v: 66, uso: 'Da base do card ao centro do selo.' },
   { id: 'ponto', nome: 'Pontos laterais', grupo: 'posicao', v: 10, uso: 'Diâmetro dos 6 pontos, centrados na margem (26 px da borda), na altura do cabeçalho, do meio do card e do selo.' },
