@@ -75,7 +75,8 @@
 .card .ponto { position: absolute; border-radius: 50%; z-index: 4; pointer-events: none; background: #3F4B57; }
 
 /* Linha de contexto da capa: uma linha só */
-.card .linha:not(:empty) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* linha de contexto das capas: até 5 linhas, na largura inteira do bloco */
+.card .linha:not(:empty) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
 
 /* Linha de contexto vazia não ocupa espaço (no editor, só o aviso aparece por cima) */
 .card .linha:empty { height: 0; margin-top: 0 !important; overflow: visible; }
@@ -163,3 +164,4 @@
 }
 .card .slot-vazio b { font-size: 34px; margin-right: 6px; }
 .card .slot.alvo { box-shadow: inset 0 0 0 6px rgba(60,130,220,.9); }
+.card .fluxo.meio { justify-content: center; }

@@ -88,15 +88,19 @@
 
   <main class="editor" id="editor">
     <aside class="lado esq">
-      <div class="lado-cab">
-        <h2>Informações</h2>
-      </div>
       <div class="lado-corpo" id="globais">
-        <div id="globaisPub"></div>
-        <div class="opcoes" id="opcoes" hidden></div>
-        <div class="imagens" id="imagens"></div>
-        <div id="globaisFech"></div>
-        <div id="registro"></div>
+        <details class="macro" data-macro="publicacao" open>
+          <summary><h2>Dados da publicação</h2></summary>
+          <div class="macro-corpo" id="globaisPub"></div>
+        </details>
+        <details class="macro" data-macro="card" open>
+          <summary><h2>Dados do card <span class="card-tag" id="cardTag"></span></h2></summary>
+          <div class="macro-corpo">
+            <div class="secao opcoes" id="opcoes" hidden></div>
+            <div class="secao textos" id="textos" hidden></div>
+            <div class="secao imagens" id="imagens"></div>
+          </div>
+        </details>
       </div>
     </aside>
 

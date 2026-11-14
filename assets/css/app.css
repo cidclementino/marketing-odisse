@@ -98,17 +98,6 @@ input, textarea, select { font: inherit; color: inherit; }
 .seg2 button + button { border-left: 1px solid var(--linha-2); }
 .seg2 button.ativo { background: var(--ardosia); color: var(--papel); font-weight: 600; }
 
-.registro-grupo { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--linha); }
-.registro {
-  border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px;
-  display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center;
-  margin-bottom: 22px; background: #fff;
-}
-.registro .sel { width: 54px; height: 54px; border-radius: 6px; display: grid; place-items: center; }
-.registro dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11.5px; }
-.registro dt { color: var(--ardosia-2); }
-.registro dd { margin: 0; font-weight: 550; display: flex; align-items: center; gap: 6px; }
-.registro .amostra { width: 11px; height: 11px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
 
 /* ---- Palco ------------------------------------------------------------ */
 .palco { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -232,10 +221,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .modelo .tag { font-size: 9.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ocre); }
 
 /* Imagens do card selecionado — faixa própria entre Publicação e Fechamento */
-.imagens {
-  margin: 4px -20px 22px; padding: 14px 20px 6px;
-  background: var(--fundo); border-top: 1px solid var(--linha); border-bottom: 1px solid var(--linha);
-}
+.imagens { }
 .imagens h3 { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
 .card-tag { font-size: 10.5px; letter-spacing: 0; background: var(--ardosia); color: var(--papel); border-radius: 99px; padding: 1px 7px; }
 .imagens .vazio { margin: 0 0 10px; }
@@ -776,7 +762,7 @@ body:not(.vista-metricas) .metricas { display: none; }
 .faixa .num input { width: 46px; padding: 2px 4px; font: inherit; font-size: 11px; text-align: right; border: 1px solid var(--linha-2); border-radius: 4px; background: var(--papel); color: var(--ardosia); accent-color: auto; }
 
 /* Personalização do card */
-.opcoes { margin: 4px -20px 0; padding: 14px 20px 8px; border-top: 1px solid var(--linha); }
+.opcoes { }
 .opcoes h3 { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
 .opcoes h3 .cod { white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace; background: var(--ardosia); color: var(--papel); border-radius: 4px; padding: 3px 5px; letter-spacing: 0; }
 .opcoes .opcao { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; font-size: 12px; }
@@ -785,10 +771,34 @@ body:not(.vista-metricas) .metricas { display: none; }
 .opcoes .seg button { padding: 5px 10px; font-size: 12px; }
 
 /* Personalização do card → Textos: estilo 01–03 do macro e liga/desliga */
-.opcoes .textos-card { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--linha); }
-.opcoes .textos-card h4 { margin: 0 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
-.opcoes .texto-op { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.opcoes .texto-op .check { margin: 0; font-size: 12px; font-weight: 550; }
-.opcoes .texto-op .seg button { padding: 4px 8px; font-variant-numeric: tabular-nums; }
-.opcoes .texto-op.off .check { color: var(--ardosia-2); }
-.opcoes .texto-op.off .seg { opacity: .4; }
+
+/* ---- Coluna esquerda: duas macrosseções recolhíveis ----------------------- */
+.lado.esq .lado-corpo { padding-top: 0; }
+.macro { margin: 0 -20px; border-bottom: 1px solid var(--linha); }
+.macro > summary {
+  list-style: none; cursor: pointer; padding: 18px 20px 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.macro > summary::-webkit-details-marker { display: none; }
+.macro > summary h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+.macro > summary::after { content: ''; width: 7px; height: 7px; border-right: 1.5px solid var(--ardosia-2); border-bottom: 1.5px solid var(--ardosia-2); transform: rotate(45deg); margin-top: -4px; transition: transform .15s; }
+.macro:not([open]) > summary::after { transform: rotate(-45deg); margin-top: 0; }
+.macro-corpo { padding: 2px 20px 8px; }
+.macro .secao { margin: 0 -20px; padding: 14px 20px 8px; border-top: 1px dashed var(--linha); }
+.macro .secao:first-child { border-top: 0; padding-top: 4px; }
+.secao h3 { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
+.opcoes .seg button .amostra { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+
+/* Textos do card: check · nome · estilo, e a caixa do conteúdo */
+.texto-item { margin-bottom: 12px; }
+.texto-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.texto-cab .check { margin: 0; font-size: 12px; font-weight: 550; }
+.texto-cab .seg button { padding: 3px 8px; font-variant-numeric: tabular-nums; }
+.texto-caixa {
+  min-height: 54px; padding: 8px 10px; font-size: 13px; line-height: 1.35;
+  border: 1px solid var(--linha-2); border-radius: 6px; background: #fff; white-space: pre-wrap; word-break: break-word;
+}
+.texto-caixa:focus { outline: 2px solid var(--azul); outline-offset: -1px; border-color: transparent; }
+.texto-caixa:empty::before { content: attr(data-ph); color: var(--ardosia-2); opacity: .6; }
+.texto-item.off .texto-cab .check { color: var(--ardosia-2); }
+.texto-item.off .seg, .texto-item.off .texto-caixa { opacity: .4; }

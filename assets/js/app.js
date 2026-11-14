@@ -394,46 +394,20 @@ const CAMPOS_GLOBAIS = [
     { k: 'projeto', rot: 'Rótulo do cabeçalho', rotElaia: 'Autoria', dica: 'Texto do canto superior direito dos cards.', dicaElaia: 'Canto superior direito dos cards, depois do texto fixo "Escrito por".' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date' },
   ] },
-  { grupo: 'Fechamento', dica: 'Aparecem no card de fechamento. Valem para toda a publicação. Site, telefone e e-mail vêm da Marca, de acordo com o núcleo.', fechamento: true, campos: [
-    { k: 'contatoTitulo', rot: 'Chamada', area: true },
-    { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
-  ] },
 ];
 
 function renderGlobais() {
   const n = nucleo();
   const g = pub.globais;
-  const cor = tintaSobre(n.painel);
-  const nomeCor = (hex) => ({ [COR.ardosia]: 'Ardósia', [COR.areia]: 'Areia', [COR.grafite]: 'Grafite', [COR.pessego]: 'Pêssego', [COR.terra]: 'Terra', [COR.papel]: 'Papel' }[hex] || hex);
-  const amostra = (c) => `<span class="amostra" style="background:${c}"></span>`;
-  const grupo = (grp) => {
-    let h = `<div class="grupo"><h3>${grp.grupo}${info(grp.dica)}</h3>`;
-    for (const c of grp.campos) {
-      if (c.tipo === 'check') {
-        h += `<label class="check"><input type="checkbox" data-k="${c.k}" ${g[c.k] ? 'checked' : ''}> ${c.rot}${info(c.dica)}</label>`;
-      } else {
-        const valor = c.k === '__titulo' ? pub.titulo : g[c.k];
-        const elaia = n.autoria && c.rotElaia;
-        const input = c.area
-          ? `<textarea data-k="${c.k}" rows="2">${esc(valor)}</textarea>`
-          : `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${c.k === '__titulo' ? ' placeholder="Ex.: Apto RP 201 · lançamento"' : ''}>`;
-        h += `<label class="campo" data-campo-global="${c.k}"><span>${elaia ? c.rotElaia : c.rot}${info(elaia ? c.dicaElaia : c.dica)}</span>${input}</label>`;
-      }
-    }
-    return h + `</div>`;
-  };
-  const [pubGrp, fechGrp] = CAMPOS_GLOBAIS;
-  $('#globaisPub').innerHTML = grupo(pubGrp);
-  $('#globaisFech').innerHTML = grupo(fechGrp);
-  $('#registro').innerHTML = `<div class="grupo registro-grupo"><h3>Registro do núcleo</h3><div class="registro">
-    <div class="sel" style="background:${n.painel};color:${cor}">${mark(n.selo, 34)}</div>
-    <dl>
-      <dt>Painel</dt><dd>${amostra(n.painel)}${nomeCor(n.painel)}</dd>
-      <dt>Véu</dt><dd>${amostra(n.veu)}${nomeCor(n.veu)}</dd>
-      <dt>Imagem</dt><dd>${n.tratamentoNome}</dd>
-      <dt>Selo</dt><dd>${{ roda: 'Roda', sol: 'Sol', flor: 'Flor', mao: 'Mão' }[n.selo]}</dd>
-    </dl>
-  </div></div>`;
+  const [grp] = CAMPOS_GLOBAIS;
+  let h = '';
+  for (const c of grp.campos) {
+    const valor = c.k === '__titulo' ? pub.titulo : g[c.k];
+    const elaia = n.autoria && c.rotElaia;
+    const input = `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${c.k === '__titulo' ? ' placeholder="Ex.: Apto RP 201 · lançamento"' : ''}>`;
+    h += `<label class="campo" data-campo-global="${c.k}"><span>${elaia ? c.rotElaia : c.rot}${info(elaia ? c.dicaElaia : c.dica)}</span>${input}</label>`;
+  }
+  $('#globaisPub').innerHTML = h;
 }
 
 let timerGlobais;
@@ -524,7 +498,8 @@ function renderImagens() {
   const dica = slots.length
     ? 'Valem só para este card. Clique numa área vazia do card para adicionar, arraste um arquivo sobre ela ou arraste a imagem para reenquadrar.'
     : 'Este modelo é só texto. Clique nos textos do card para editar.';
-  let h = `<h3>Imagens do card <span class="card-tag">${String(pub.ativo + 1).padStart(2, '0')}</span>${info(dica)}</h3>`;
+  $('#cardTag').textContent = String(pub.ativo + 1).padStart(2, '0');
+  let h = `<h3>Imagens${info(dica)}</h3>`;
   if (!slots.length) h += `<p class="vazio">Sem imagens neste modelo.</p>`;
   for (const [s, nome] of slots) {
     const im = c.imgs[s];
@@ -576,11 +551,11 @@ function renderOpcoes() {
   }
   const ops = opcoesDe(m, c, nucleo());
   el.hidden = false;
-  el.innerHTML = `<h3>Personalização do card${info('Opções de composição deste card. A identidade (cores, véu, selo, tratamento) vem do núcleo.')}</h3>
-    ${opcoesDoModelo(m).map((d) => `<div class="opcao"><span>${d.rot}</span>
-      <div class="seg" role="group" aria-label="${d.rot}">${d.valores.map(([v, rot]) =>
-        `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${rot}</button>`).join('')}</div></div>`).join('')}
-    ${renderTextos(c)}`;
+  el.innerHTML = `<h3>Personalização${info('Opções de composição deste card. O preenchimento pinta o fundo do card e o carimbo cheio; as cores vêm da Marca, por núcleo.')}</h3>
+    ${opcoesDoModelo(m, nucleo(), c).map((d) => `<div class="opcao"><span>${d.rot}</span>
+      <div class="seg" role="group" aria-label="${d.rot}">${d.valores.map(([v, rot, hex]) =>
+        `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${hex ? `<i class="amostra" style="background:${hex}"></i>` : ''}${rot}</button>`).join('')}</div></div>`).join('')}`;
+  renderTextos(c);
 }
 
 /** Nome de cada texto no painel: o macro (Título / Corpo) e, quando ajuda, de qual texto se trata. */
@@ -590,23 +565,41 @@ const faixaDe = (cls) => {
   return Array.isArray(t.tamanho) ? `${t.tamanho[0]}–${t.tamanho[1]} px` : `${t.tamanho} px`;
 };
 
+/** Textos do card: check · nome · estilo 01–03, e a caixa com o conteúdo, ligada ao canvas.
+ *  No fechamento (O-10) esta seção é o próprio Fechamento: chamada e apoio valem para a publicação toda. */
+const CHAVES_GLOBAIS = new Set(['contatoTitulo', 'contatoTexto']);
 function renderTextos(c) {
+  const el = $('#textos');
   const ordem = { titulo: 0, corpo: 1 };
   const lista = textosDe({ card: c, nucleo: nucleo(), globais: pub.globais }).sort((x, y) => ordem[x.macro] - ordem[y.macro]);
-  if (!lista.length) return '';
-  const linhas = lista.map(({ chave, macro, padrao }) => {
+  el.hidden = !lista.length;
+  if (!lista.length) { el.innerHTML = ''; return; }
+  const fech = grupoDe(modeloDe(pub.nucleo, c.modelo)) === 'fechamento';
+  const ex = exemploDe(pub.nucleo, c.modelo) || {};
+  const itens = lista.map(({ chave, macro, padrao }) => {
     const conf = c.textos?.[chave] || {};
     const ativo = conf.ativo !== false;
     const atual = conf.estilo && MACROS[macro].classes.includes(conf.estilo) ? conf.estilo : padrao;
     const nome = MACROS[macro].nome + (QUAL_TEXTO[chave] ? ` · ${QUAL_TEXTO[chave]}` : '');
-    return `<div class="opcao texto-op${ativo ? '' : ' off'}">
-      <label class="check"><input type="checkbox" data-txt-ativo="${chave}" ${ativo ? 'checked' : ''}> ${nome}</label>
-      <div class="seg" role="group" aria-label="Estilo de ${nome}">${MACROS[macro].classes.map((cls, i) => {
-        const est = TEXTO_POR_CLASSE[cls];
-        return `<button class="${cls === atual ? 'ativo' : ''}" data-txt-estilo="${chave}" data-v="${cls}" title="${est.nome} · ${faixaDe(cls)}${cls === padrao ? ' · padrão do modelo' : ''}" aria-pressed="${cls === atual}" ${ativo ? '' : 'disabled'}>${String(i + 1).padStart(2, '0')}</button>`;
-      }).join('')}</div></div>`;
+    const global = CHAVES_GLOBAIS.has(chave);
+    const valor = global ? esc(pub.globais[chave] || '') : (c.campos?.[chave] || '');
+    const ph = esc(String(ex[chave] || nome).replace(/<[^>]+>/g, ''));
+    return `<div class="texto-item${ativo ? '' : ' off'}">
+      <div class="texto-cab">
+        <label class="check"><input type="checkbox" data-txt-ativo="${chave}" ${ativo ? 'checked' : ''}> ${nome}</label>
+        <div class="seg" role="group" aria-label="Estilo de ${nome}">${MACROS[macro].classes.map((cls, i) => {
+          const est = TEXTO_POR_CLASSE[cls];
+          return `<button class="${cls === atual ? 'ativo' : ''}" data-txt-estilo="${chave}" data-v="${cls}" title="${est.nome} · ${faixaDe(cls)}${cls === padrao ? ' · padrão do modelo' : ''}" aria-pressed="${cls === atual}" ${ativo ? '' : 'disabled'}>${String(i + 1).padStart(2, '0')}</button>`;
+        }).join('')}</div>
+      </div>
+      <div class="texto-caixa" contenteditable="true" spellcheck="true" data-txt-campo="${chave}"${global ? ' data-txt-global' : ''} data-ph="${ph}">${valor}</div>
+    </div>`;
   }).join('');
-  return `<div class="textos-card"><h4>Textos${info('Estilo de cada texto entre os três do seu macro (Título 01–03, Corpo 01–03). Desligado, o texto sai e a imagem ou o vazio ocupam o lugar.')}</h4>${linhas}</div>`;
+  const titulo = fech ? 'Fechamento' : 'Textos';
+  const dica = fech
+    ? 'Chamada e texto de apoio do fechamento valem para toda a publicação. Site, telefone e e-mail vêm da Marca, de acordo com o núcleo.'
+    : 'Estilo de cada texto entre os três do seu macro (Título 01–03, Corpo 01–03). Desligado, o texto sai e a imagem ou o vazio ocupam o lugar.';
+  el.innerHTML = `<h3>${titulo}${info(dica)}</h3>${itens}`;
 }
 
 function atualizarImgNoCard(cardId, slot) {
@@ -1034,13 +1027,52 @@ function ligarEventos() {
     renderTrilho();
     renderOpcoes();
   };
-  $('#opcoes').addEventListener('click', (e) => {
+  const textos = $('#textos');
+  textos.addEventListener('click', (e) => {
     const b = e.target.closest('[data-txt-estilo]');
     if (b && !b.disabled) mudarTexto(b.dataset.txtEstilo, { estilo: b.dataset.v });
   });
-  $('#opcoes').addEventListener('change', (e) => {
+  textos.addEventListener('change', (e) => {
     const k = e.target.dataset?.txtAtivo;
     if (k) mudarTexto(k, { ativo: e.target.checked });
+  });
+  // Caixa de texto do painel ↔ texto no card
+  textos.addEventListener('input', (e) => {
+    const cx = e.target.closest('[data-txt-campo]');
+    if (!cx) return;
+    const k = cx.dataset.txtCampo;
+    if (cx.dataset.txtGlobal !== undefined) { aoMudarGlobal(k, cx.innerText.replace(/\n+$/, '')); return; }
+    const html = limparHtml(cx.innerHTML);
+    cardAtivo().campos[k] = html;
+    const el = $(`#trilho .peca.ativa [data-campo="${k}"]`);
+    if (el) {
+      el.innerHTML = html;
+      if (el.dataset.fit) ajustar(el);
+      if (el.dataset.cresce) crescer(el);
+      refluir(el.closest('.card'));
+    }
+    salvar();
+  });
+  textos.addEventListener('keydown', (e) => {
+    const cx = e.target.closest('[data-txt-campo]');
+    if (!cx) return;
+    if (e.key === 'Enter') { e.preventDefault(); document.execCommand('insertLineBreak'); }
+    if (e.key === 'Escape') cx.blur();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b' && cx.dataset.txtGlobal === undefined) { e.preventDefault(); document.execCommand('bold'); }
+  });
+  textos.addEventListener('paste', (e) => {
+    if (!e.target.closest('[data-txt-campo]')) return;
+    e.preventDefault();
+    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+  });
+  // Macrosseções recolhíveis (lembradas)
+  $$('#globais details.macro').forEach((d) => {
+    if (prefs.get('macrosFechadas', []).includes(d.dataset.macro)) d.open = false;
+    d.addEventListener('toggle', () => {
+      const f = new Set(prefs.get('macrosFechadas', []));
+      if (d.open) f.delete(d.dataset.macro); else f.add(d.dataset.macro);
+      prefs.set('macrosFechadas', [...f]);
+    });
   });
 
   // Barra
@@ -1137,6 +1169,8 @@ function ligarEventos() {
     if (el.dataset.fit) ajustar(el);
     if (el.dataset.cresce) crescer(el);
     refluir(el.closest('.card')); // imagens em bloco acompanham o texto que cresce ou encolhe
+    const caixa = $(`#textos [data-txt-campo="${el.dataset.campo}"]`);
+    if (caixa && document.activeElement !== caixa) caixa.innerHTML = el.innerHTML;
     salvar();
   });
   trilho.addEventListener('focusout', (e) => {
@@ -1226,13 +1260,14 @@ function ligarEventos() {
 }
 
 function focarGlobal(k) {
-  const alvo = $(`#globais [data-campo-global="${k}"]`);
+  const alvo = $(`#globais [data-campo-global="${k}"]`) || $(`#textos [data-txt-campo="${k}"]`)?.closest('.texto-item');
   if (!alvo) return;
+  alvo.closest('details.macro')?.setAttribute('open', '');
   alvo.scrollIntoView({ block: 'center', behavior: 'smooth' });
   alvo.classList.remove('pisca');
   void alvo.offsetWidth;
   alvo.classList.add('pisca');
-  alvo.querySelector('input, textarea')?.focus();
+  (alvo.querySelector('input, textarea, [contenteditable]'))?.focus();
 }
 
 function erroExport(err) {
