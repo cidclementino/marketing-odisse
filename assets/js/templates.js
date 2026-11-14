@@ -18,6 +18,8 @@ export const W = (a, b) => (b - a + 1) * COLW + (b - a) * G;
 const W12 = W(1, 12);
 const CORTE = E.corte;
 const TOPO = E.topo;
+const QUADRO = E.quadro;        // y 180: início do recorte quadrado
+const FIM = ALT - E.quadro;     // y 1260: fim do recorte quadrado — base de todo bloco de texto
 const px = (k) => `${E[k]}px`;
 // cortes verticais no meio do gutter
 const C4 = X(5) - G / 2;  // entre as colunas 4 e 5
@@ -218,6 +220,8 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
 // ---------------------------------------------------------------------------
 // Peças reutilizadas por mais de um núcleo
 
+// três etapas entre y 176 e o fim do recorte quadrado (1260), separadas por um Próximo
+const PASSO_ETAPA = (ALT - E.quadro - 176 - 2 * E.proximo) / 3;
 const processo = (exemplo) => ({
   id: 'processo',
   rotulo: true,
@@ -227,9 +231,9 @@ const processo = (exemplo) => ({
   exemplo,
   render(t) {
     const linhas = ['a', 'b', 'c'].map((s, i) => {
-      const y = 176 + i * 378;
-      return `${t.img(s, 0, y, C6 - h2, 362, { fundo: COR.nevoa })}
-        ${t.fluxo(X(8), y, W(8, 12), 362, A, `
+      const y = 176 + i * (PASSO_ETAPA + E.proximo);
+      return `${t.img(s, 0, y, C6 - h2, PASSO_ETAPA, { fundo: COR.nevoa })}
+        ${t.fluxo(X(8), y, W(8, 12), PASSO_ETAPA, A, `
           <div style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}">
             <div class="t-chamada">0${i + 1}</div>
             ${t.campo(`p${i + 1}r`, 't-rotulo', `margin:${px('proximo')} 0 ${px('proximo')}`)}
@@ -282,7 +286,7 @@ const desenho = {
         ${t.campo('texto', 't-texto')}`, '', 'txt')}
       ${t.img('b', X(9), 150, W(9, 11), 240, { contain: true, opcional: true })}
       ${t.campo('planta', 't-rotulo', `position:absolute;${pos(X(9), 390 + E.proximo)}color:${A}`)}
-      ${t.img('a', M, 440, W(1, 9), 840, { contain: true, segue: 'txt' })}
+      ${t.img('a', M, 440, W(1, 9), FIM - 440, { contain: true, segue: 'txt' })}
       ${t.campo('cota', 't-rotulo', `position:absolute;${pos(X(10), 860)}color:${A}`)}
       ${t.selo(A)}`;
   },
@@ -324,7 +328,7 @@ const ESTUDIO = [
       return `${t.fundo(A)}
         ${t.img('a', 0, 0, LARG, 498, { antes: 'txt' })}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, B, `
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, FIM - IMG_MIN - E.bloco, B, `
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 280 })}
           ${t.ficha('f', 5, B, regraSobre(A), { estilo: `margin-top:${px('bloco')}` })}`, 'fim', 'txt')}
@@ -385,7 +389,7 @@ const ARQUITETOS = [
         ${t.campo('l1', 't-rotulo', `position:absolute;${pos(M, ly)}color:${A}`)}
         ${t.campo('l2', 't-rotulo', `position:absolute;${pos(X(5), ly)}color:${A}`)}
         ${t.campo('l3', 't-rotulo', `position:absolute;${pos(X(9), ly)}color:${A}`)}
-        ${t.fluxo(M, ly + 24 + E.bloco, W12, 220, A, t.apoio('texto', 7))}
+        ${t.fluxo(M, ly + 24 + E.bloco, W12, FIM - ly - 24 - E.bloco, A, t.apoio('texto', 7))}
         ${t.selo(A)}`;
     },
   },
@@ -405,7 +409,7 @@ const ARQUITETOS = [
         ${t.cab(B)}
         ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 558 + E.bloco)}color:${A}`)}
         ${t.fluxo(X(5), 558 + E.bloco, W(5, 12), 200, A, t.campo('texto', 't-texto'), '', 'txt')}
-        ${t.img('b', 0, 802, LARG, 498, { segue: 'txt' })}
+        ${t.img('b', 0, 802, LARG, FIM - 802, { segue: 'txt' })}
         ${t.campo('rodape', 't-rotulo', `position:absolute;${pos(M, 1364)}color:${A}`)}
         ${t.selo(A)}`;
     },
@@ -432,7 +436,7 @@ const OBJETOS = [
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 430 })}`)}
         ${t.fluxo(M, 644, W(1, 5), 400, B, t.campo('texto', 't-texto'))}
-        ${t.img('a', X(7), 640, W(7, 12), 640)}
+        ${t.img('a', X(7), 640, W(7, 12), FIM - 640)}
         ${t.selo(B)}`;
     },
   },
@@ -475,7 +479,7 @@ const OBJETOS = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, C4 - h2, ALT)}${t.veuTopo(200, 0.6, 0, C4 - h2)}
         ${t.cab(B, A)}
-        ${t.fluxo(X(5), TOPO, W(5, 12), 1150, A, `
+        ${t.fluxo(X(5), TOPO, W(5, 12), FIM - TOPO, A, `
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.ficha('f', 7, A, regraSobre(COR.papel), { empilhada: true })}`)}
         ${t.selo(A)}`;
@@ -498,7 +502,7 @@ const OBJETOS = [
       return `${t.fundo(COR.grafite)}
         ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB', antes: 'txt' })}
         ${t.cab(A)}
-        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, B, `
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, FIM - IMG_MIN - E.bloco, B, `
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 140 })}
           ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}
@@ -528,7 +532,7 @@ const ELAIA = [
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, 880, { antes: 'txt' })}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, A, linha, 'fim', 'txt')}
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, FIM - IMG_MIN - E.bloco, A, linha, 'fim', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -562,7 +566,7 @@ const ELAIA = [
     render(t) {
       return `${t.fundo(COR.pessego)}${t.cab(A)}
         ${t.img('a', X(2), 100, W(2, 11), 610, { contain: true, antes: 'txt' })}
-        ${t.fluxo(M, 100 + IMG_MIN + E.bloco, W12, 1200 - IMG_MIN - E.bloco, A, `
+        ${t.fluxo(M, 100 + IMG_MIN + E.bloco, W12, FIM - 100 - IMG_MIN - E.bloco, A, `
           ${t.campo('texto', 't-texto', `margin-bottom:${px('bloco')}`)}
           ${t.ficha('f', 3, A, regraSobre(COR.pessego))}`, 'fim', 'txt')}
         ${t.selo(A)}`;
@@ -644,18 +648,18 @@ const O01 = {
     const veus = clara ? t.veuBase(520, 0.7) : alto ? `${t.veuTopo(760, 0.6)}${t.veuBase()}` : `${t.veuTopo()}${t.veuBase(820, 0.8)}`;
     return `${t.img('a', 0, 0, LARG, ALT, { fundo: FUNDO_FOTO(t.n) })}${veus}
       ${t.cab(clara ? A : B)}
-      ${alto ? t.fluxo(M, 180, W12, 560, cor, miolo) : t.fluxo(M, 180, W12, 1070, cor, miolo, 'fim')}
+      ${alto ? t.fluxo(M, QUADRO, W12, 560, cor, miolo) : t.fluxo(M, QUADRO, W12, FIM - QUADRO, cor, miolo, 'fim')}
       ${t.selo(B)}`;
   },
 };
 
-const BASE_FAIXA = 1170; // base fixa da faixa de imagens do O-02
 const O02 = {
   id: 'o02', cod: 'O-02', grupo: 'capa',
   nome: 'Capa com faixa de imagens',
-  desc: 'Título e linha no alto; faixa de 1 a 3 imagens com a base fixa, que encolhe pelo topo quando o título cresce.',
+  desc: 'Título e linha acima ou abaixo de uma faixa de 1 a 3 imagens, tudo dentro do recorte quadrado (y 180–1260); a faixa cede espaço quando o texto cresce.',
   slots: { a: 'Imagem 1', b: 'Imagem 2', c: 'Imagem 3' },
   opcoes: [
+    op('texto', 'Texto', [['acima', 'Acima da imagem'], ['abaixo', 'Abaixo da imagem']], 'acima'),
     op('imagens', 'Imagens na faixa', [['1', '1'], ['2', '2'], ['3', '3']], (n) => (n.id === 'estudio' ? '2' : '1')),
     OP_FUNDO((n) => (n.id === 'estudio' ? 'painel' : 'papel')),
   ],
@@ -663,10 +667,17 @@ const O02 = {
   exemplo: porNucleo({ ...EX_CAPA, elaia: { titulo: 'Backrooms,<br>Labirinto<br>Domesticado', linha: EX_CAPA.elaia.linha } }),
   render(t) {
     const f = t.op('fundo') === 'painel' ? t.n.painel : COR.papel, cor = tintaSobre(f);
-    const imgs = fatias(Number(t.op('imagens'))).map(([x, w], i) =>
-      t.img('abc'[i], x, 560, w, BASE_FAIXA - 560, { segue: 'tit', fundo: FUNDO_FOTO(t.n) })).join('');
+    const abaixo = t.op('texto') === 'abaixo';
+    const miolo = `${t.campo('titulo', 't-capa', '', { fit: t.tem('linha') ? 400 : 480 })}${t.linha()}`;
+    // acima: texto começa em 180 e a faixa segue até 1260; abaixo: faixa começa em 180 e desce até um Bloco antes do texto, que termina em 1260
+    const imgs = fatias(Number(t.op('imagens'))).map(([x, w], i) => (abaixo
+      ? t.img('abc'[i], x, QUADRO, w, 600, { antes: 'tit', fundo: FUNDO_FOTO(t.n) })
+      : t.img('abc'[i], x, 560, w, FIM - 560, { segue: 'tit', fundo: FUNDO_FOTO(t.n) }))).join('');
+    const texto = abaixo
+      ? t.fluxo(M, QUADRO + IMG_MIN + E.bloco, W12, FIM - QUADRO - IMG_MIN - E.bloco, cor, miolo, 'fim', 'tit')
+      : t.fluxo(M, QUADRO, W12, 560, cor, miolo, '', 'tit');
     return `${t.fundo(f)}${t.cab(cor)}
-      ${t.fluxo(M, 160, W12, 560, cor, `${t.campo('titulo', 't-capa', '', { fit: t.tem('linha') ? 400 : 480 })}${t.linha()}`, '', 'tit')}
+      ${texto}
       ${imgs}
       ${t.selo(cor)}`;
   },
@@ -696,12 +707,12 @@ const O03 = {
       ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
       ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`, '', bloco);
     if (t.op('ordem') === 'imagem') {
-      // texto ancorado embaixo (fim em 1300); a imagem desce até um Bloco antes do início do texto
+      // texto ancorado embaixo (fim em 1260, base do recorte quadrado); a imagem desce até um Bloco antes do início do texto
       const yTxt = IMG_MIN + E.bloco;
       return `${t.fundo(f)}
         ${t.img('a', 0, 0, LARG, 760, { antes: 'txt', fundo: FUNDO_FOTO(t.n) })}${FOTO_CLARA(t.n) ? '' : t.veuTopo()}
         ${t.cab(FOTO_CLARA(t.n) ? A : B)}
-        ${t.fluxo(M, yTxt, W12, 1300 - yTxt, cor, `
+        ${t.fluxo(M, yTxt, W12, FIM - yTxt, cor, `
           ${t.campo('titulo', 't-titulo', '', { fit: 340 })}
           ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}`, 'fim', 'txt')}
         ${t.selo(cor)}`;
@@ -775,7 +786,7 @@ const O06 = {
     const fimImg = C8 - h2;
     // respiro de um Bloco entre a imagem e a coluna de texto
     const xCol = fimImg + E.bloco, wCol = LARG - M - xCol;
-    const y0 = painel ? 0 : TOPO, y1 = painel ? ALT : TOPO + 1170;
+    const y0 = painel ? 0 : TOPO, y1 = painel ? ALT : FIM;
     const dois = t.op('imagens') === '2';
     const hImg = dois ? (y1 - y0 - CORTE) / 2 : y1 - y0;
     const imgs = t.img('a', 0, y0, fimImg, hImg) + (dois ? t.img('b', 0, y0 + hImg + CORTE, fimImg, hImg) : '');
@@ -787,7 +798,7 @@ const O06 = {
       ${imgs}
       ${painel ? `${t.veuTopo(200, 0.6, 0, fimImg)}${t.veuBase(340, 0.72, 0, fimImg)}` : ''}
       ${t.cab(painel ? B : A, cor)}
-      ${t.fluxo(xCol, TOPO, wCol, 1170, cor, `${t.campo('texto', 't-texto')}${credito}`)}
+      ${t.fluxo(xCol, TOPO, wCol, FIM - TOPO, cor, `${t.campo('texto', 't-texto')}${credito}`)}
       ${t.selo(painel ? B : A)}`;
   },
 };
@@ -825,7 +836,7 @@ const O08 = {
     return `${t.img('a', 0, 0, LARG, ALT)}
       ${alto ? `${t.veuTopo(760, 0.6)}${t.veuBase()}` : `${t.veuTopo()}${t.veuBase(860, 0.82)}`}
       ${t.cab(B)}
-      ${alto ? t.fluxo(M, TOPO, W12, 700, B, miolo) : t.fluxo(M, 180, W12, 1060, B, miolo, 'fim')}
+      ${alto ? t.fluxo(M, TOPO, W12, 700, B, miolo) : t.fluxo(M, QUADRO, W12, FIM - QUADRO, B, miolo, 'fim')}
       ${t.selo(B)}`;
   },
 };
@@ -866,14 +877,14 @@ const O09 = {
       return `${t.fundo(COR.papel)}
         ${t.img('a', 0, 0, LARG, hImg, { fundo: FUNDO_FOTO(t.n), antes: 'txt' })}${clara ? '' : t.veuTopo()}
         ${t.cab(clara ? A : B)}
-        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, A, `
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, FIM - IMG_MIN - E.bloco, A, `
           ${t.campo('titulo', 't-titulo', `margin-bottom:${px('bloco')}`, { fit: 250, ph: 'Título (opcional)' })}
           ${t.ficha('f', Number(t.op('linhas')), A, regraSobre(COR.papel), { todas: true })}`, 'fim', 'txt')}
         ${t.selo(A)}`;
     }
     const f = t.n.veu;
     return `${t.fundo(f)}${t.cab(B)}
-      ${t.fluxo(M, TOPO, W12, 1172, B, `
+      ${t.fluxo(M, TOPO, W12, FIM - TOPO, B, `
         ${t.campo('titulo', 't-titulo', '', { fit: 250 })}
         ${t.ficha('f', Number(t.op('linhas')), B, regraSobre(f), { estilo: 'margin-top:auto', todas: true })}`)}
       ${t.selo(B)}`;

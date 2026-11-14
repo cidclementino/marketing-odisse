@@ -674,18 +674,6 @@ function renderTrilho() {
   renderBarra();
 }
 
-/** Ações do card (setas, duplicar, excluir) centradas sobre o card em destaque. */
-function posicionarAcoes() {
-  const ativa = $('#trilho .peca.ativa .moldura');
-  const grupo = $('#acoesCard');
-  if (!ativa) return;
-  const palco = $('#palco').getBoundingClientRect();
-  const r = ativa.getBoundingClientRect();
-  const meio = r.left + r.width / 2 - palco.left;
-  const metade = grupo.offsetWidth / 2;
-  grupo.style.left = Math.max(metade + 8, Math.min(palco.width - metade - 8, meio)) + 'px';
-}
-
 function renderBarra() {
   const c = cardAtivo();
   $('#posicao').textContent = `Card ${pub.ativo + 1} de ${pub.cards.length}`;
@@ -697,7 +685,6 @@ function renderBarra() {
   $('#navDir').disabled = pub.ativo >= pub.cards.length - 1;
   $$('#modos button').forEach((b) => b.classList.toggle('ativo', b.dataset.modo === modo));
   $('#pontos').innerHTML = pub.cards.map((_, i) => `<button data-ir="${i}" class="${i === pub.ativo ? 'ativo' : ''}">${i + 1}</button>`).join('');
-  requestAnimationFrame(posicionarAcoes);
 }
 
 function irPara(i) {
@@ -1127,7 +1114,6 @@ function ligarEventos() {
 
   // Trilho
   const trilho = $('#trilho');
-  trilho.addEventListener('scroll', () => requestAnimationFrame(posicionarAcoes));
   trilho.addEventListener('click', (e) => {
     if (e.target.closest('#btMais')) { adicionarCard(); return; }
     const peca = e.target.closest('.peca[data-i]');

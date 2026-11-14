@@ -107,8 +107,6 @@
           <span class="modelo-atual" id="modeloAtual"></span>
         </div>
         <div class="acoes-card" id="acoesCard">
-          <button class="ico" id="btMoverEsq" title="Mover para a esquerda">←</button>
-          <button class="ico" id="btMoverDir" title="Mover para a direita">→</button>
           <button class="txt" id="btDuplicar" title="Duplicar card">Duplicar</button>
           <button class="txt perigo" id="btExcluir" title="Excluir card">Excluir</button>
         </div>
@@ -124,7 +122,11 @@
       </div>
       <div class="rodape">
         <div class="seg guias-bt" role="group" aria-label="Guias de composição" id="guias"></div>
-        <div class="pontos" id="pontos"></div>
+        <div class="paginacao">
+          <button class="ico" id="btMoverEsq" title="Mover o card para a esquerda">←</button>
+          <div class="pontos" id="pontos"></div>
+          <button class="ico" id="btMoverDir" title="Mover o card para a direita">→</button>
+        </div>
         <div class="exportar">
           <button class="txt" id="btExportarCard">Exportar card</button>
           <button class="txt forte" id="btExportarTudo">Exportar carrossel</button>
