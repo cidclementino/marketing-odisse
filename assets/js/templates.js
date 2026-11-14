@@ -767,6 +767,8 @@ const FICHA_OBJ = {
   f6r: 'Cor', f6v: 'Preto fosco',
   f7r: 'Design', f7v: 'Cid Clementino, Nathalia Linhares',
 };
+// O-09: a imagem não fica menor que isto; quando o texto cresce, a ficha perde linhas antes
+const IMG_MIN_FICHA = 480;
 const O09 = {
   id: 'o09', cod: 'O-09',
   nome: 'Ficha',
@@ -791,7 +793,7 @@ const O09 = {
       return `${t.fundo(t.f)}
         ${t.img('a', 0, 0, LARG, 560, { fundo: FUNDO_FOTO(t.n), antes: 'txt' })}${clara ? '' : t.veuTopo()}
         ${t.cab(clara ? A : B)}
-        <div class="fluxo fim" data-bloco="txt" data-podar style="${pos(M, IMG_MIN + E.bloco, W12, FIM - IMG_MIN - E.bloco)}color:${t.tinta}">
+        <div class="fluxo fim" data-bloco="txt" data-podar style="${pos(M, IMG_MIN_FICHA + E.bloco, W12, FIM - IMG_MIN_FICHA - E.bloco)}color:${t.tinta}">
           ${titulo}${corpo}${t.ficha('f', linhas, t.tinta, t.filete, { soCheias: true })}</div>
         ${t.selo(t.tinta)}`;
     }
