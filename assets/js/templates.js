@@ -869,8 +869,8 @@ const O12 = {
   nome: 'Citação',
   desc: 'Só texto: rótulo e citação (Corpo 01), ancorados no topo, no centro ou na base do recorte quadrado. Selecione palavras e use Ctrl+B para destacar.',
   slots: {},
-  rotulo: true,
-  opcoes: [POS_TEXTO('centro')],
+  opcoes: [POS_TEXTO('centro'), op('rotulo', 'Rótulo acima do texto', [['nao', 'Sem'], ['sim', 'Com']], 'sim')],
+  rotulo: (t) => t.op('rotulo') === 'sim',
   preenche: (n) => (n.id === 'elaia' ? COR.pessego : COR.papel),
   exemplo: porNucleo(EX_CITACAO),
   render(t) {
