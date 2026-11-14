@@ -83,3 +83,13 @@ vendor/                  html-to-image e JSZip
 ## Próximas páginas (menu geral)
 
 Stories 9:16 · Calendário (com a regra de vizinhos do grid do perfil) · Biblioteca de imagens · Estratégia · Métricas fase 2 (TikTok, sites, Substack, ações manuais).
+
+## Cache e versões dos arquivos
+
+Antes de cada commit que mude JS ou CSS, rode `python3 tools/versionar.py`. Ele numera os arquivos
+(`?v=<hash>`) no `index.html` — import map dos módulos, CSS e `vendor/`. O service worker (`sw.js`)
+guarda os arquivos numerados até a próxima versão; a página sempre confere se há versão nova.
+
+Dados: o Início mostra na hora as publicações deste navegador e consulta a nuvem por baixo (no máximo
+uma vez por minuto); a Marca é atualizada por baixo uma vez por dia; as métricas e as miniaturas do
+Instagram ficam guardadas no navegador (IndexedDB) e a leitura nova chega por baixo.

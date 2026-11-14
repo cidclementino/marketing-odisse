@@ -93,8 +93,7 @@ export const igDesconectar = () => reqIG('/api/instagram/conectar', 'DELETE');
 export const igColetar = () => reqIG('/api/instagram/coletar', 'POST');
 export const igVincular = (mediaId, pub) => reqIG(`/api/instagram/vinculos/${mediaId}`, 'PUT', { pub });
 export async function igMiniatura(mediaId) {
-  const blob = await (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
-  return URL.createObjectURL(blob);
+  return (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
 }
 
 // ---- Métricas: etiquetas e concorrentes ------------------------------------

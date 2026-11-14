@@ -43,8 +43,15 @@ try {
   if (c?.contato) dados = c;
 } catch { /* sem storage */ }
 
-/** Busca a Marca (até 3 s). Não bloqueia além disso: segue com o cache ou a reserva. */
-export async function carregarMarca() {
+const CHAVE_DATA = 'universo-marca-em';
+const UM_DIA = 24 * 3600 * 1000;
+
+/** Atualiza a Marca por baixo, no máximo uma vez por dia; até lá vale a cópia guardada. */
+export async function carregarMarca({ forcar = false } = {}) {
+  try {
+    const em = Number(localStorage.getItem(CHAVE_DATA) || 0);
+    if (!forcar && dados !== RESERVA && Date.now() - em < UM_DIA) return;
+  } catch { /* sem storage */ }
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 3000);
@@ -54,7 +61,7 @@ export async function carregarMarca() {
     const j = await r.json();
     if (!j?.contato) return;
     dados = j;
-    try { localStorage.setItem(CHAVE_CACHE, JSON.stringify(j)); } catch { /* */ }
+    try { localStorage.setItem(CHAVE_CACHE, JSON.stringify(j)); localStorage.setItem(CHAVE_DATA, String(Date.now())); } catch { /* */ }
   } catch { /* fica com o que há */ }
 }
 

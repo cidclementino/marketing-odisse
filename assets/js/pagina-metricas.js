@@ -6,6 +6,7 @@
 // Dados: worker/instagram.js e worker/concorrentes.js. Formato comum: metricas/modelo.js.
 
 import * as nuvem from './nuvem.js';
+import * as local from './store.js';
 import { NUCLEOS, ORDEM_NUCLEOS } from './nucleos.js';
 import { REDES, normalizar, recortar } from './metricas/modelo.js';
 import { esc, n, ligarDicas } from './metricas/graficos.js';
@@ -42,22 +43,46 @@ const subAtual = () => {
 
 // ---------------------------------------------------------------------------
 
+// A última leitura fica guardada neste navegador: ao abrir, aparece na hora (com a data da coleta)
+// e a leitura nova chega por baixo. Na mesma sessão, a nuvem é consultada de novo após 10 min.
+const CHAVE_LEITURA = 'metricas-leitura';
+const VALIDADE = 10 * 60 * 1000;
+let lidoEm = 0;
+
 export async function renderMetricas(el) {
   raiz = el;
   if (!raiz.dataset.ligado) ligar();
   ligarDicas(raiz);
-  if (!dados) { raiz.innerHTML = '<section><p class="met-carregando">Carregando métricas…</p></section>'; await carregar(); return; }
-  desenhar();
-}
-
-async function carregar() {
-  try {
-    [dados, ui.resumos] = await Promise.all([nuvem.igMetricas(), nuvem.listar().catch(() => [])]);
-    N = normalizar(dados);
-  } catch (e) {
-    raiz.innerHTML = `<section><p class="met-erro">Não foi possível carregar as métricas: ${esc(e.message)}</p></section>`;
+  if (!dados) {
+    const guardada = await local.ler(CHAVE_LEITURA, 'meta');
+    if (guardada?.dados) {
+      dados = guardada.dados;
+      ui.resumos = guardada.resumos || [];
+      N = normalizar(dados);
+      desenhar();
+      carregar({ fundo: true });
+      return;
+    }
+    raiz.innerHTML = '<section><p class="met-carregando">Carregando métricas…</p></section>';
+    await carregar();
     return;
   }
+  desenhar();
+  if (Date.now() - lidoEm > VALIDADE) carregar({ fundo: true });
+}
+
+async function carregar({ fundo = false } = {}) {
+  try {
+    [dados, ui.resumos] = await Promise.all([nuvem.igMetricas(), nuvem.listar().catch(() => ui.resumos || [])]);
+    N = normalizar(dados);
+    lidoEm = Date.now();
+    local.gravar(CHAVE_LEITURA, { dados, resumos: ui.resumos, em: lidoEm }, 'meta');
+  } catch (e) {
+    // por baixo, um erro não apaga a leitura guardada que está na tela
+    if (!fundo) raiz.innerHTML = `<section><p class="met-erro">Não foi possível carregar as métricas: ${esc(e.message)}</p></section>`;
+    return;
+  }
+  if (fundo && !document.body.classList.contains('vista-metricas')) return;
   desenhar();
 }
 
@@ -157,7 +182,15 @@ async function carregarMinis() {
     const id = a.dataset.mini;
     if (!id) continue;
     try {
-      if (!minis.has(id)) minis.set(id, await nuvem.igMiniatura(id));
+      if (!minis.has(id)) {
+        // miniaturas guardadas neste navegador: só baixa a que ainda não tem
+        let blob = await local.ler('igmini:' + id, 'meta');
+        if (!blob) {
+          blob = await nuvem.igMiniatura(id);
+          local.gravar('igmini:' + id, blob, 'meta');
+        }
+        minis.set(id, URL.createObjectURL(blob));
+      }
       a.style.backgroundImage = `url(${minis.get(id)})`;
     } catch { /* sem miniatura */ }
   }

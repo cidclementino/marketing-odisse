@@ -258,20 +258,42 @@ function limparHtml(html) {
 
 let filtro = 'todos';
 
-async function carregarArquivo() {
+// Arquivo de publicações: o que está neste navegador aparece na hora; a lista da nuvem é consultada
+// por baixo, no máximo uma vez por minuto (ou na hora, quando `forcar`), e a tela se ajusta se algo mudou.
+const INTERVALO_LISTA = 60 * 1000;
+let remotos = null, remotosEm = 0;
+
+async function montarResumos() {
   const locais = await local.listarPubs();
   const mapa = new Map(locais.map((r) => [r.id, { ...r, rascunho: (r.atualizado || '') > (r.salvoEm || '') }]));
-  try {
-    for (const r of await nuvem.listar()) {
-      const l = mapa.get(r.id);
-      if (!l || (r.atualizado || '') >= (l.atualizado || '')) mapa.set(r.id, { ...r, rascunho: false });
-    }
-    status('pronto');
-  } catch (e) {
-    if (e.message === 'senha incorreta') return sair();
-    status('erro', e.message);
+  for (const r of remotos || []) {
+    const l = mapa.get(r.id);
+    if (!l || (r.atualizado || '') >= (l.atualizado || '')) mapa.set(r.id, { ...r, rascunho: false });
   }
   resumos = [...mapa.values()].sort((a, b) => (b.atualizado || '').localeCompare(a.atualizado || ''));
+}
+
+/** Busca a lista na nuvem. Devolve true quando ela mudou desde a última consulta. */
+async function buscarLista(forcar = false) {
+  if (!forcar && remotos && Date.now() - remotosEm < INTERVALO_LISTA) return false;
+  try {
+    const novos = await nuvem.listar();
+    const mudou = JSON.stringify(novos) !== JSON.stringify(remotos);
+    remotos = novos;
+    remotosEm = Date.now();
+    status('pronto');
+    return mudou;
+  } catch (e) {
+    if (e.message === 'senha incorreta') { sair(); return false; }
+    status('erro', e.message);
+    return false;
+  }
+}
+
+/** Arquivo completo, esperando a nuvem (usado depois de duplicar, excluir ou abrir por link). */
+async function carregarArquivo() {
+  await buscarLista(true);
+  await montarResumos();
 }
 
 function renderInicio() {
@@ -858,8 +880,13 @@ async function rotear() {
     if (pub) await sairDoEditor();
     document.title = 'Universo · Posts 3:4';
     mostrar('inicio');
-    await carregarArquivo();
+    await montarResumos(); // na hora, com o que já está neste navegador
     renderInicio();
+    buscarLista().then(async (mudou) => {
+      if (!mudou || pub || !document.body.classList.contains('vista-inicio')) return;
+      await montarResumos();
+      renderInicio();
+    });
   }
 }
 
@@ -1355,7 +1382,8 @@ async function iniciar() {
   $('#marcaSelo').innerHTML = mark('mao', 24);
   $('#loginSelo').innerHTML = mark('mao', 30);
   status('pronto');
-  await Promise.all([migrar(), carregarMarca()]);
+  carregarMarca(); // por baixo: o site abre com a cópia guardada da Marca
+  await migrar();
   await document.fonts.load('700 112px Inter').catch(() => {});
   await document.fonts.ready;
   ligarEventos();
@@ -1363,3 +1391,8 @@ async function iniciar() {
 }
 
 iniciar();
+
+// Arquivos do site com número de versão (?v=) ficam guardados pelo service worker até a próxima versão.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* segue sem */ });
+}
