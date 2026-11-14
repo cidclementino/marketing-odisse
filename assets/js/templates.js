@@ -36,8 +36,8 @@ const regraSobre = (fundo) => (tintaSobre(fundo) === COR.branco ? 'rgba(255,255,
 const B = COR.branco, A = COR.ardosia;
 // Carimbo do cabeçalho: altura de um Bloco (48), centrado na linha dos pontos (y 50).
 const CARIMBO = { y: E.cabecalho + 12 - E.bloco / 2, h: E.bloco };
-// Campos que não entram em "Textos": rótulos, linha de contexto, legendas, créditos, ficha e avisos.
-const FORA_DOS_TEXTOS = /^(rotulo|linha|legR|legT|fonte|aviso|link|assin|planta|cota|rodape|l\d|f\d+[rv])$/;
+// Campos que não entram em "Textos": rótulos, legendas, créditos, ficha e avisos.
+const FORA_DOS_TEXTOS = /^(rotulo|legR|legT|fonte|aviso|link|assin|planta|cota|rodape|l\d|f\d+[rv])$/;
 const OP_CARIMBO = { k: 'carimbo', rot: 'Carimbo', valores: [['linhas', 'Só linhas'], ['cheio', 'Fundo cheio']], padrao: 'linhas' };
 
 // ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
   const t = {
     n, g, editavel, textos,
     op: (k) => ops[k],
-    tem: (chave) => !!String(card.campos?.[chave] ?? '').replace(/<[^>]+>|&nbsp;|\s/g, ''),
+    tem: (chave) => card.textos?.[chave]?.ativo !== false && !!String(card.campos?.[chave] ?? '').replace(/<[^>]+>|&nbsp;|\s/g, ''),
 
     campo(chave, classe, estilo = '', opc = {}) {
       // O rótulo de contexto (ex.: "A VISTA") só existe em posts únicos, fechamentos e nos modelos marcados (O-07).
@@ -153,8 +153,9 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         dir = t.campo('aviso', 'cab-txt', '', { ph: 'Aviso' });
       } else {
         const ultimo = indice === total - 1;
-        // a seta aponta para o próximo card; no último, volta (para a esquerda)
-        dir = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${ultimo ? SETA_VOLTA : SETA}`;
+        // a seta aponta para o próximo card (depois do número); no último, volta para a esquerda (antes do número)
+        const num = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}`;
+        dir = ultimo ? `${SETA_VOLTA}${num}` : `${num}${SETA}`;
       }
       // As laterais (núcleo e contagem) têm a largura do próprio texto mais o respiro; o tema ocupa o resto,
       // alinhado à esquerda. O carimbo é inteiro: uma cor só, todo transparente ou todo cheio (colorirPontos).

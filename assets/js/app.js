@@ -584,7 +584,7 @@ function renderOpcoes() {
 }
 
 /** Nome de cada texto no painel: o macro (Título / Corpo) e, quando ajuda, de qual texto se trata. */
-const QUAL_TEXTO = { citacao: 'citação', sub: 'subtítulo', p1t: 'etapa 01', p2t: 'etapa 02', p3t: 'etapa 03', contatoTitulo: 'chamada', contatoTexto: 'apoio' };
+const QUAL_TEXTO = { linha: 'linha de contexto', citacao: 'citação', sub: 'subtítulo', p1t: 'etapa 01', p2t: 'etapa 02', p3t: 'etapa 03', contatoTitulo: 'chamada', contatoTexto: 'apoio' };
 const faixaDe = (cls) => {
   const t = TEXTO_POR_CLASSE[cls];
   return Array.isArray(t.tamanho) ? `${t.tamanho[0]}–${t.tamanho[1]} px` : `${t.tamanho} px`;
