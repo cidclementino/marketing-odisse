@@ -802,3 +802,10 @@ body:not(.vista-metricas) .metricas { display: none; }
 .texto-caixa:empty::before { content: attr(data-ph); color: var(--ardosia-2); opacity: .6; }
 .texto-item.off .texto-cab .check { color: var(--ardosia-2); }
 .texto-item.off .seg, .texto-item.off .texto-caixa { opacity: .4; }
+
+/* Ficha do card: número · rótulo · valor; aviso quando a linha não cabe no card */
+.ficha-item { display: grid; grid-template-columns: 22px 0.8fr 1.2fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+.ficha-item input { min-width: 0; padding: 6px 8px; font-size: 12.5px; border: 1px solid var(--linha-2); border-radius: 6px; background: #fff; }
+.ficha-num { font-size: 11px; font-weight: 600; color: var(--ardosia-2); font-variant-numeric: tabular-nums; }
+.ficha-aviso { grid-column: 2 / -1; font-size: 11px; color: #A4502A; margin-top: -2px; }
+.ficha-item.suprimida input { border-style: dashed; color: var(--ardosia-2); }

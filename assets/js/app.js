@@ -3,7 +3,7 @@
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, estruturaDe, LARG, ALT,
 } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
@@ -590,17 +590,52 @@ const faixaDe = (cls) => {
 /** Textos do card: check · nome · estilo 01–03, e a caixa com o conteúdo, ligada ao canvas.
  *  No fechamento (O-10) esta seção é o próprio Fechamento: chamada e apoio valem para a publicação toda. */
 const CHAVES_GLOBAIS = new Set(['contatoTitulo', 'contatoTexto']);
+/** Ficha do card: rótulo e valor de cada linha, editáveis aqui. As linhas que não cabem no card
+ *  (a imagem, o título e o corpo ocupam o espaço) saem dele e ficam marcadas com o aviso. */
+const textoPuro = (html) => String(html || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+function renderFicha(c, fichas) {
+  const el = $('#ficha');
+  el.hidden = !fichas.length;
+  if (!fichas.length) { el.innerHTML = ''; return; }
+  const ex = exemploDe(pub.nucleo, c.modelo) || {};
+  const linhas = fichas.map(({ prefixo, linhas: n }) => Array.from({ length: n }, (_, j) => {
+    const k = `${prefixo}${j + 1}`;
+    const ph = (s) => esc(textoPuro(ex[s]) || '');
+    return `<div class="ficha-item" data-linha="${k}">
+      <span class="ficha-num">${String(j + 1).padStart(2, '0')}</span>
+      <input data-ficha="${k}r" value="${esc(textoPuro(c.campos?.[k + 'r']))}" placeholder="${ph(k + 'r') || 'Rótulo'}" aria-label="Rótulo da linha ${j + 1}">
+      <input data-ficha="${k}v" value="${esc(textoPuro(c.campos?.[k + 'v']))}" placeholder="${ph(k + 'v') || 'Valor'}" aria-label="Valor da linha ${j + 1}">
+      <small class="ficha-aviso" hidden>Suprimida por falta de espaço no card.</small>
+    </div>`;
+  }).join('')).join('');
+  el.innerHTML = `<h3>Ficha${info('Linhas da ficha (rótulo e valor). Só as preenchidas aparecem no card; as que não cabem, porque imagem, título e corpo ocupam o espaço, saem do card e ficam marcadas aqui.')}</h3>${linhas}`;
+  requestAnimationFrame(atualizarAvisosFicha);
+}
+
+/** Marca no painel as linhas preenchidas que o card suprimiu por falta de espaço. */
+function atualizarAvisosFicha() {
+  $$('#ficha .ficha-item').forEach((item) => {
+    const k = item.dataset.linha;
+    const noCard = $(`#trilho .peca.ativa .card [data-linha="${k}"]`);
+    const sup = !!noCard?.dataset.suprimida;
+    item.classList.toggle('suprimida', sup);
+    item.querySelector('.ficha-aviso').hidden = !sup;
+  });
+}
+
 function renderTextos(c) {
   const el = $('#textos');
   const ordem = { titulo: 0, corpo: 1 };
-  const lista = textosDe({ card: c, nucleo: nucleo(), globais: pub.globais }).sort((x, y) => ordem[x.macro] - ordem[y.macro]);
+  const est = estruturaDe({ card: c, nucleo: nucleo(), globais: pub.globais });
+  renderFicha(c, est.fichas);
+  const lista = est.textos.sort((x, y) => ordem[x.macro] - ordem[y.macro]);
   el.hidden = !lista.length;
   if (!lista.length) { el.innerHTML = ''; return; }
   const fech = grupoDe(modeloDe(pub.nucleo, c.modelo)) === 'fechamento';
   const ex = exemploDe(pub.nucleo, c.modelo) || {};
-  const itens = lista.map(({ chave, macro, padrao }) => {
+  const itens = lista.map(({ chave, macro, padrao, ativo }) => {
     const conf = c.textos?.[chave] || {};
-    const ativo = conf.ativo !== false;
     const atual = conf.estilo && MACROS[macro].classes.includes(conf.estilo) ? conf.estilo : padrao;
     const nome = MACROS[macro].nome + (QUAL_TEXTO[chave] ? ` · ${QUAL_TEXTO[chave]}` : '');
     const global = CHAVES_GLOBAIS.has(chave);
@@ -682,6 +717,7 @@ function renderTrilho() {
   h += `<button class="mais" id="btMais" title="Adicionar card ${modo === 'todos' ? 'no fim' : 'depois deste'}">+</button>`;
   trilho.innerHTML = h;
   $$('.card', trilho).forEach(ajustarLayout);
+  atualizarAvisosFicha();
 
   const largura = vis.length * (LARG * k + gap) + 70;
   trilho.classList.toggle('rolavel', largura > trilho.clientWidth);
@@ -1077,6 +1113,7 @@ function ligarEventos() {
       if (el.dataset.fit) ajustar(el);
       if (el.dataset.cresce) crescer(el);
       refluir(el.closest('.card'));
+      atualizarAvisosFicha();
     }
     salvar();
   });
@@ -1091,6 +1128,26 @@ function ligarEventos() {
     if (!e.target.closest('[data-txt-campo]')) return;
     e.preventDefault();
     document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+  });
+  // Ficha: rótulo e valor de cada linha
+  let timerFicha;
+  $('#ficha').addEventListener('input', (e) => {
+    const k = e.target.dataset?.ficha;
+    if (!k) return;
+    const c = cardAtivo();
+    c.campos = c.campos || {};
+    c.campos[k] = esc(e.target.value);
+    const el = $(`#trilho .peca.ativa .card [data-campo="${k}"]`);
+    if (el && el.closest('.ficha-linha')?.style.display !== 'none') {
+      el.textContent = e.target.value;
+      refluir(el.closest('.card'));
+      atualizarAvisosFicha();
+    } else {
+      // linha que ainda não está no card (vazia até agora): redesenha
+      clearTimeout(timerFicha);
+      timerFicha = setTimeout(renderTrilho, 250);
+    }
+    salvar();
   });
   // Macrosseções recolhíveis (lembradas)
   $$('#globais details.macro').forEach((d) => {
@@ -1198,6 +1255,9 @@ function ligarEventos() {
     refluir(el.closest('.card')); // imagens em bloco acompanham o texto que cresce ou encolhe
     const caixa = $(`#textos [data-txt-campo="${el.dataset.campo}"]`);
     if (caixa && document.activeElement !== caixa) caixa.innerHTML = el.innerHTML;
+    const campoFicha = $(`#ficha [data-ficha="${el.dataset.campo}"]`);
+    if (campoFicha) campoFicha.value = textoPuro(el.innerHTML);
+    atualizarAvisosFicha();
     salvar();
   });
   trilho.addEventListener('focusout', (e) => {
