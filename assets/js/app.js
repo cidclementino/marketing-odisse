@@ -3,13 +3,14 @@
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, seguir, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, LARG, ALT,
 } from './templates.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import * as local from './store.js';
 import * as nuvem from './nuvem.js';
-import { instalarPadroes } from './padroes.js';
+import { instalarPadroes, MACROS, TEXTO_POR_CLASSE } from './padroes.js';
+import { carregarMarca } from './marca.js';
 import { renderPadroes } from './pagina-padroes.js';
 import { renderMetricas } from './pagina-metricas.js';
 
@@ -393,12 +394,9 @@ const CAMPOS_GLOBAIS = [
     { k: 'projeto', rot: 'Rótulo do cabeçalho', rotElaia: 'Autoria', dica: 'Texto do canto superior direito dos cards.', dicaElaia: 'Canto superior direito dos cards, depois do texto fixo "Escrito por".' },
     { k: 'dataPublicacao', rot: 'Data de publicação', tipo: 'date' },
   ] },
-  { grupo: 'Fechamento e contatos', dica: 'Aparecem no card de fechamento. Valem para toda a publicação.', fechamento: true, campos: [
+  { grupo: 'Fechamento', dica: 'Aparecem no card de fechamento. Valem para toda a publicação. Site, telefone e e-mail vêm da Marca, de acordo com o núcleo.', fechamento: true, campos: [
     { k: 'contatoTitulo', rot: 'Chamada', area: true },
     { k: 'contatoTexto', rot: 'Texto de apoio', area: true },
-    { k: 'site', rot: 'Site' },
-    { k: 'telefone', rot: 'Telefone' },
-    { k: 'email', rot: 'E-mail' },
   ] },
 ];
 
@@ -581,7 +579,34 @@ function renderOpcoes() {
   el.innerHTML = `<h3>Personalização do card${info('Opções de composição deste card. A identidade (cores, véu, selo, tratamento) vem do núcleo.')}</h3>
     ${opcoesDoModelo(m).map((d) => `<div class="opcao"><span>${d.rot}</span>
       <div class="seg" role="group" aria-label="${d.rot}">${d.valores.map(([v, rot]) =>
-        `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${rot}</button>`).join('')}</div></div>`).join('')}`;
+        `<button class="${ops[d.k] === v ? 'ativo' : ''}" data-op="${d.k}" data-v="${v}" aria-pressed="${ops[d.k] === v}">${rot}</button>`).join('')}</div></div>`).join('')}
+    ${renderTextos(c)}`;
+}
+
+/** Nome de cada texto no painel: o macro (Título / Corpo) e, quando ajuda, de qual texto se trata. */
+const QUAL_TEXTO = { citacao: 'citação', sub: 'subtítulo', p1t: 'etapa 01', p2t: 'etapa 02', p3t: 'etapa 03', contatoTitulo: 'chamada', contatoTexto: 'apoio' };
+const faixaDe = (cls) => {
+  const t = TEXTO_POR_CLASSE[cls];
+  return Array.isArray(t.tamanho) ? `${t.tamanho[0]}–${t.tamanho[1]} px` : `${t.tamanho} px`;
+};
+
+function renderTextos(c) {
+  const ordem = { titulo: 0, corpo: 1 };
+  const lista = textosDe({ card: c, nucleo: nucleo(), globais: pub.globais }).sort((x, y) => ordem[x.macro] - ordem[y.macro]);
+  if (!lista.length) return '';
+  const linhas = lista.map(({ chave, macro, padrao }) => {
+    const conf = c.textos?.[chave] || {};
+    const ativo = conf.ativo !== false;
+    const atual = conf.estilo && MACROS[macro].classes.includes(conf.estilo) ? conf.estilo : padrao;
+    const nome = MACROS[macro].nome + (QUAL_TEXTO[chave] ? ` · ${QUAL_TEXTO[chave]}` : '');
+    return `<div class="opcao texto-op${ativo ? '' : ' off'}">
+      <label class="check"><input type="checkbox" data-txt-ativo="${chave}" ${ativo ? 'checked' : ''}> ${nome}</label>
+      <div class="seg" role="group" aria-label="Estilo de ${nome}">${MACROS[macro].classes.map((cls, i) => {
+        const est = TEXTO_POR_CLASSE[cls];
+        return `<button class="${cls === atual ? 'ativo' : ''}" data-txt-estilo="${chave}" data-v="${cls}" title="${est.nome} · ${faixaDe(cls)}${cls === padrao ? ' · padrão do modelo' : ''}" aria-pressed="${cls === atual}" ${ativo ? '' : 'disabled'}>${String(i + 1).padStart(2, '0')}</button>`;
+      }).join('')}</div></div>`;
+  }).join('');
+  return `<div class="textos-card"><h4>Textos${info('Estilo de cada texto entre os três do seu macro (Título 01–03, Corpo 01–03). Desligado, o texto sai e a imagem ou o vazio ocupam o lugar.')}</h4>${linhas}</div>`;
 }
 
 function atualizarImgNoCard(cardId, slot) {
@@ -1014,6 +1039,22 @@ function ligarEventos() {
     renderTrilho();
     renderImagens();
   });
+  // Textos do card: estilo (01–03 do macro) e ligado/desligado
+  const mudarTexto = (chave, mudanca) => {
+    const c = cardAtivo();
+    c.textos = { ...(c.textos || {}), [chave]: { ...(c.textos?.[chave] || {}), ...mudanca } };
+    salvar();
+    renderTrilho();
+    renderOpcoes();
+  };
+  $('#opcoes').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-txt-estilo]');
+    if (b && !b.disabled) mudarTexto(b.dataset.txtEstilo, { estilo: b.dataset.v });
+  });
+  $('#opcoes').addEventListener('change', (e) => {
+    const k = e.target.dataset?.txtAtivo;
+    if (k) mudarTexto(k, { ativo: e.target.checked });
+  });
 
   // Barra
   renderGuias();
@@ -1109,8 +1150,7 @@ function ligarEventos() {
     cardAtivo().campos[el.dataset.campo] = limparHtml(el.innerHTML);
     if (el.dataset.fit) ajustar(el);
     if (el.dataset.cresce) crescer(el);
-    const card = el.closest('.card');
-    card.querySelectorAll('[data-segue]').forEach((s) => seguir(s, card));
+    refluir(el.closest('.card')); // imagens em bloco acompanham o texto que cresce ou encolhe
     salvar();
   });
   trilho.addEventListener('focusout', (e) => {
@@ -1294,7 +1334,7 @@ async function iniciar() {
   $('#marcaSelo').innerHTML = mark('mao', 24);
   $('#loginSelo').innerHTML = mark('mao', 30);
   status('pronto');
-  await migrar();
+  await Promise.all([migrar(), carregarMarca()]);
   await document.fonts.load('700 112px Inter').catch(() => {});
   await document.fonts.ready;
   ligarEventos();

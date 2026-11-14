@@ -53,10 +53,11 @@
 .card .slot.contain img { object-fit: contain; }
 
 /* Carimbo do cabeçalho — caixa tripartida (núcleo · tema · contagem), estilo Rótulo.
-   Centrada na linha dos pontos; o meio é mais largo. Cor e fundo de cada célula: colorirPontos. */
+   Centrada na linha dos pontos. As laterais têm a largura do texto mais o respiro; o tema ocupa
+   o resto, à esquerda. Cor e fundo do carimbo inteiro (sem partição): colorirPontos. */
 .card .carimbo {
   position: absolute; z-index: 3;
-  display: grid; grid-template-columns: 1fr 1.6fr 1fr;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
   white-space: nowrap;
 }
 .card .carimbo .cel {
@@ -66,7 +67,7 @@
   overflow: hidden;
 }
 .card .carimbo .cel.esq { border-left-width: 1.5px; }
-.card .carimbo .cel.meio { justify-content: center; text-align: center; }
+.card .carimbo .cel.meio { justify-content: flex-start; text-align: left; }
 .card .carimbo .cel.dir { justify-content: flex-end; gap: var(--e-proximo); }
 .card .carimbo .seta { display: block; flex: none; }
 
@@ -91,6 +92,9 @@
 .card .fluxo { display: flex; flex-direction: column; z-index: 2; pointer-events: none; }
 .card .fluxo > * { pointer-events: auto; }
 .card .fluxo.fim { justify-content: flex-end; }
+/* Texto desligado não deixa espaço: o primeiro elemento do bloco não carrega o respiro de quem saiu */
+.card .fluxo > [data-txt]:first-child,
+.card .fluxo.fim > :first-child { margin-top: 0 !important; }
 .card .fluxo.meio { justify-content: center; }
 
 /* Tipografia — uma família, contraste extremo. Corpo, peso, entrelinha e tracking

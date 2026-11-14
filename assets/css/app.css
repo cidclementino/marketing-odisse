@@ -776,3 +776,12 @@ body:not(.vista-metricas) .metricas { display: none; }
 .opcoes .opcao > span { font-weight: 550; }
 .opcoes .seg { align-self: flex-start; flex-wrap: wrap; }
 .opcoes .seg button { padding: 5px 10px; font-size: 12px; }
+
+/* Personalização do card → Textos: estilo 01–03 do macro e liga/desliga */
+.opcoes .textos-card { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--linha); }
+.opcoes .textos-card h4 { margin: 0 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
+.opcoes .texto-op { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.opcoes .texto-op .check { margin: 0; font-size: 12px; font-weight: 550; }
+.opcoes .texto-op .seg button { padding: 4px 8px; font-variant-numeric: tabular-nums; }
+.opcoes .texto-op.off .check { color: var(--ardosia-2); }
+.opcoes .texto-op.off .seg { opacity: .4; }

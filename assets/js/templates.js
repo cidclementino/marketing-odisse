@@ -4,7 +4,8 @@
 
 import { COR, tintaSobre } from './nucleos.js';
 import { mark } from './marks.js';
-import { E, TEXTO_POR_CLASSE, corpoMin, corpoMax } from './padroes.js';
+import { E, TEXTO_POR_CLASSE, corpoMin, corpoMax, MACROS, MACRO_DA_CLASSE } from './padroes.js';
+import { contatosDe } from './marca.js';
 
 // Todo espaçamento vem de padroes.js (E.bloco, E.proximo…). Nenhum valor solto nos modelos.
 export const LARG = 1080;
@@ -35,6 +36,8 @@ const regraSobre = (fundo) => (tintaSobre(fundo) === COR.branco ? 'rgba(255,255,
 const B = COR.branco, A = COR.ardosia;
 // Carimbo do cabeçalho: altura de um Bloco (48), centrado na linha dos pontos (y 50).
 const CARIMBO = { y: E.cabecalho + 12 - E.bloco / 2, h: E.bloco };
+// Campos que não entram em "Textos": rótulos, linha de contexto, legendas, créditos, ficha e avisos.
+const FORA_DOS_TEXTOS = /^(rotulo|linha|legR|legT|fonte|aviso|link|assin|planta|cota|rodape|l\d|f\d+[rv])$/;
 const OP_CARIMBO = { k: 'carimbo', rot: 'Carimbo', valores: [['linhas', 'Só linhas'], ['cheio', 'Fundo cheio']], padrao: 'linhas' };
 
 // ---------------------------------------------------------------------------
@@ -50,14 +53,31 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
   // legenda no canto superior direito: modelos do Estúdio marcados, ou a opção "No topo"
   const legendaTopo = !!modelo.legendaTopo || ops.legenda === 'topo';
 
+  // Textos de conteúdo (Título / Corpo): cada um escolhe um dos três estilos do macro e pode ser desligado
+  // (card.textos[chave] = { estilo, ativo }). Desligado, não ocupa espaço: imagens e vazios tomam o lugar.
+  const textos = [];
+  const conferir = (chave, classe) => {
+    const cls = classe.split(' ');
+    const i = cls.findIndex((c) => MACRO_DA_CLASSE[c]);
+    if (i < 0 || FORA_DOS_TEXTOS.test(chave)) return { classe, ativo: true };
+    const macro = MACRO_DA_CLASSE[cls[i]];
+    if (!textos.some((x) => x.chave === chave)) textos.push({ chave, macro, padrao: cls[i] });
+    const conf = card.textos?.[chave] || {};
+    if (conf.estilo && MACROS[macro].classes.includes(conf.estilo)) cls[i] = conf.estilo;
+    return { classe: cls.join(' '), ativo: conf.ativo !== false };
+  };
+
   const t = {
-    n, g, editavel,
+    n, g, editavel, textos,
     op: (k) => ops[k],
     tem: (chave) => !!String(card.campos?.[chave] ?? '').replace(/<[^>]+>|&nbsp;|\s/g, ''),
 
     campo(chave, classe, estilo = '', opc = {}) {
       // O rótulo de contexto (ex.: "A VISTA") só existe em posts únicos, fechamentos e nos modelos marcados (O-07).
       if (chave === 'rotulo' && !modelo.rotulo && !['unico', 'fechamento'].includes(grupoDe(modelo))) return '';
+      const cf = conferir(chave, classe);
+      if (!cf.ativo) return '';
+      classe = cf.classe;
       const valor = card.campos?.[chave] ?? '';
       // opc.fit = altura máxima da área; o corpo vai do máximo ao mínimo do estilo (padroes.js)
       let fit = '';
@@ -68,7 +88,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
       const ph = esc(String(opc.ph ?? ex[chave] ?? '').replace(/<[^>]+>/g, ''));
       if (!editavel && !valor) return '';
       const attrs = editavel ? ` contenteditable="true" spellcheck="true" data-campo="${chave}" data-ph="${ph}"` : '';
-      return `<div class="${classe}" style="${estilo}"${fit}${opc.attrs || ''}${attrs}>${valor}</div>`;
+      return `<div class="${classe}" style="${estilo}" data-txt${fit}${opc.attrs || ''}${attrs}>${valor}</div>`;
     },
 
     /** Texto de apoio: até 5 linhas; se passar, alarga a caixa (3/4 → tela inteira).
@@ -79,10 +99,17 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     },
 
     global(chave, classe, estilo = '') {
+      const cf = conferir(chave, classe);
       const v = g[chave] ?? '';
-      if (!v) return '';
+      if (!v || !cf.ativo) return '';
       const attr = editavel ? ` data-global="${chave}" title="Informação padrão — edite no painel à esquerda"` : '';
-      return `<div class="${classe}" style="${estilo}"${attr}>${esc(v)}</div>`;
+      return `<div class="${cf.classe}" style="${estilo}" data-txt${attr}>${esc(v)}</div>`;
+    },
+
+    /** Contato do núcleo, lido da Marca (site, telefone, e-mail). Não se edita no card. */
+    contato(chave, classe) {
+      const v = contatosDe(n.id)[chave];
+      return v ? `<div class="${classe}">${esc(v)}</div>` : '';
     },
 
     img(slot, x, y, w, h, opc = {}) {
@@ -126,10 +153,13 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
         dir = t.campo('aviso', 'cab-txt', '', { ph: 'Aviso' });
       } else {
         const ultimo = indice === total - 1;
-        dir = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${ultimo ? '' : SETA}`;
+        // a seta aponta para o próximo card; no último, volta (para a esquerda)
+        dir = `${String(indice + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}${ultimo ? SETA_VOLTA : SETA}`;
       }
-      const cel = (cls, cor, miolo) => `<div class="cel ${cls}" style="color:${cor}">${miolo}</div>`;
-      let h = `<div class="carimbo t-rotulo" data-fundo="${ops.carimbo}" style="${pos(M, CARIMBO.y, W12, CARIMBO.h)}">${cel('esq', corEsq, esc(n.cabecalho))}${cel('meio', corDir, tema)}${cel('dir', corDir, dir)}</div>`;
+      // As laterais (núcleo e contagem) têm a largura do próprio texto mais o respiro; o tema ocupa o resto,
+      // alinhado à esquerda. O carimbo é inteiro: uma cor só, todo transparente ou todo cheio (colorirPontos).
+      const cel = (cls, miolo) => `<div class="cel ${cls}">${miolo}</div>`;
+      let h = `<div class="carimbo t-rotulo" data-fundo="${ops.carimbo}" style="${pos(M, CARIMBO.y, W12, CARIMBO.h)}color:${corEsq}">${cel('esq', esc(n.cabecalho))}${cel('meio', tema)}${cel('dir', dir)}</div>`;
       if (legendaTopo && !unico) {
         const r = t.campo('legR', 't-rotulo', '', { ph: 'Rótulo' });
         const l = t.campo('legT', 't-legenda', `margin-top:${px('justo')}`, { ph: 'Legenda: quem, onde, quando.' });
@@ -142,7 +172,7 @@ export function criarContexto({ card, indice, total, nucleo, globais, modelo, mo
     selo(cor) {
       const nome = unico ? 'mao' : n.selo;
       const h = nome === 'mao' ? 72 : 64;
-      return `<div class="selo" style="top:${ALT - E.selo - h / 2}px;color:${cor}">${mark(nome, h)}</div>`;
+      return `<div class="selo" style="top:${ALT - E.selo - h / 2}px;color:${cor}" data-cor="${cor}">${mark(nome, h)}</div>`;
     },
 
     /** Linha de contexto da capa: uma linha de texto, sempre abaixo do título (opcional). */
@@ -248,10 +278,10 @@ const desenho = {
     return `${t.fundo(COR.papel)}${t.cab(A)}
       ${t.fluxo(M, TOPO, W(1, 6), 300, A, `
         ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
-        ${t.campo('texto', 't-texto')}`)}
+        ${t.campo('texto', 't-texto')}`, '', 'txt')}
       ${t.img('b', X(9), 150, W(9, 11), 240, { contain: true, opcional: true })}
       ${t.campo('planta', 't-rotulo', `position:absolute;${pos(X(9), 390 + E.proximo)}color:${A}`)}
-      ${t.img('a', M, 440, W(1, 9), 840, { contain: true })}
+      ${t.img('a', M, 440, W(1, 9), 840, { contain: true, segue: 'txt' })}
       ${t.campo('cota', 't-rotulo', `position:absolute;${pos(X(10), 860)}color:${A}`)}
       ${t.selo(A)}`;
   },
@@ -289,13 +319,14 @@ const ESTUDIO = [
       f4r: 'Site', f4v: 'odisse.com.br',
     },
     render(t) {
+      // texto ancorado embaixo; a imagem desce até um Bloco antes dele
       return `${t.fundo(A)}
-        ${t.img('a', 0, 0, LARG, 498)}${t.veuTopo()}
+        ${t.img('a', 0, 0, LARG, 498, { antes: 'txt' })}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.fluxo(M, 498 + E.bloco, W12, 1300 - 498 - E.bloco, B, `
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, B, `
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 280 })}
-          ${t.ficha('f', 5, B, regraSobre(A), { estilo: 'margin-top:auto' })}`)}
+          ${t.ficha('f', 5, B, regraSobre(A), { estilo: `margin-top:${px('bloco')}` })}`, 'fim', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -464,13 +495,13 @@ const OBJETOS = [
     },
     render(t) {
       return `${t.fundo(COR.grafite)}
-        ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB' })}
+        ${t.img('a', 0, 0, LARG, 760, { fundo: '#EDEDEB', antes: 'txt' })}
         ${t.cab(A)}
-        ${t.fluxo(M, 760 + E.bloco, W12, 1300 - 760 - E.bloco, B, `
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, B, `
           ${t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`)}
           ${t.campo('titulo', 't-titulo', '', { fit: 140 })}
           ${t.apoio('texto', 5, `margin-top:${px('bloco')}`)}
-          ${t.campo('link', 't-rotulo', `margin:auto 0 ${px('bloco')} ${X(5) - M}px`)}`)}
+          ${t.campo('link', 't-rotulo', `margin:${px('bloco')} 0 ${px('bloco')} ${X(5) - M}px`)}`, 'fim', 'txt')}
         ${t.selo(B)}`;
     },
   },
@@ -490,11 +521,13 @@ const ELAIA = [
       texto: 'O <b>Purgatório</b> descrito por Dante na Divina Comédia é um exemplo de espaço liminar.<br>Uma travessia com obstáculos que prenunciam uma transformação. É um estado intermediário que tem sentido e encaminha a um propósito.',
     },
     render(t) {
+      // rótulo na coluna 1 e texto a partir da 4, ancorados embaixo; a imagem desce até um Bloco antes deles
+      const linha = `<div style="display:grid;grid-template-columns:${W(1, 3)}px 1fr;column-gap:${G}px;align-items:start">
+        ${t.campo('rotulo', 't-rotulo') || '<div></div>'}${t.campo('texto', 't-texto') || '<div></div>'}</div>`;
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, 880)}${t.veuTopo()}
+        ${t.img('a', 0, 0, LARG, 880, { antes: 'txt' })}${t.veuTopo()}
         ${t.cab(B)}
-        ${t.campo('rotulo', 't-rotulo', `position:absolute;${pos(M, 880 + E.bloco)}color:${A}`)}
-        ${t.fluxo(X(4), 880 + E.bloco, W(4, 12), 380, A, t.campo('texto', 't-texto'))}
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, A, linha, 'fim', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -527,10 +560,10 @@ const ELAIA = [
     },
     render(t) {
       return `${t.fundo(COR.pessego)}${t.cab(A)}
-        ${t.img('a', X(2), 100, W(2, 11), 610, { contain: true })}
-        ${t.fluxo(M, 710 + E.bloco, W12, 1300 - 710 - E.bloco, A, `
+        ${t.img('a', X(2), 100, W(2, 11), 610, { contain: true, antes: 'txt' })}
+        ${t.fluxo(M, 100 + IMG_MIN + E.bloco, W12, 1200 - IMG_MIN - E.bloco, A, `
           ${t.campo('texto', 't-texto', `margin-bottom:${px('bloco')}`)}
-          ${t.ficha('f', 3, A, regraSobre(COR.pessego))}`)}
+          ${t.ficha('f', 3, A, regraSobre(COR.pessego))}`, 'fim', 'txt')}
         ${t.selo(A)}`;
     },
   },
@@ -550,7 +583,7 @@ const ELAIA = [
     },
     render(t) {
       return `${t.fundo(COR.ocre)}
-        ${t.img('a', 0, 620, LARG, 820, { fundo: COR.ocre })}
+        ${t.img('a', 0, 620, LARG, 820, { fundo: COR.ocre, segue: 'tit' })}
         ${t.veuBase(300, 0.5)}
         ${t.cab(A)}
         ${t.fluxo(M, TOPO, W12, 620 - TOPO - E.bloco, A, `
@@ -559,7 +592,7 @@ const ELAIA = [
           <div style="display:grid;grid-template-columns:${W(1, 6)}px ${W(7, 12)}px;column-gap:${G}px;margin-top:${px('bloco')};align-items:start">
             ${t.campo('sub', 't-chamada') || '<div></div>'}
             ${t.ficha('f', 2, A, regraSobre(COR.pessego), { empilhada: true, valor: 't-legenda' })}
-          </div>`)}
+          </div>`, '', 'tit')}
         ${t.selo(B)}`;
     },
   },
@@ -828,12 +861,13 @@ const O09 = {
   render(t) {
     if (t.op('imagem') === 'com') {
       const clara = FOTO_CLARA(t.n), hImg = 560;
+      // ficha travada embaixo; título logo acima; a imagem desce até um Bloco antes do título
       return `${t.fundo(COR.papel)}
-        ${t.img('a', 0, 0, LARG, hImg, { fundo: FUNDO_FOTO(t.n) })}${clara ? '' : t.veuTopo()}
+        ${t.img('a', 0, 0, LARG, hImg, { fundo: FUNDO_FOTO(t.n), antes: 'txt' })}${clara ? '' : t.veuTopo()}
         ${t.cab(clara ? A : B)}
-        ${t.fluxo(M, hImg + E.bloco, W12, 1300 - hImg - E.bloco, A, `
-          ${t.campo('titulo', 't-titulo', `margin-bottom:${px('bloco')}`, { fit: 120, ph: 'Título (opcional)' })}
-          ${t.ficha('f', Number(t.op('linhas')), A, regraSobre(COR.papel), { estilo: 'margin-top:auto', todas: true })}`)}
+        ${t.fluxo(M, IMG_MIN + E.bloco, W12, 1300 - IMG_MIN - E.bloco, A, `
+          ${t.campo('titulo', 't-titulo', `margin-bottom:${px('bloco')}`, { fit: 250, ph: 'Título (opcional)' })}
+          ${t.ficha('f', Number(t.op('linhas')), A, regraSobre(COR.papel), { todas: true })}`, 'fim', 'txt')}
         ${t.selo(A)}`;
     }
     const f = t.n.veu;
@@ -855,11 +889,11 @@ const IMG_FECH = { y: 440, h: 544, w: 264 };
 const O10 = {
   id: 'o10', cod: 'O-10', grupo: 'fechamento',
   nome: 'Fechamento',
-  desc: 'Chamada no topo da imagem (rótulo acima), contatos na base dela e texto de apoio no meio; logotipo no pé, sem selo.',
+  desc: 'Chamada no topo da imagem (rótulo acima), contatos (da Marca) na base dela e texto de apoio no meio; logotipo na meia altura do vazio abaixo, sem selo.',
   slots: { a: 'Imagem lateral (opcional)' },
   exemplo: porNucleo({ objetos: { rotulo: 'Loja' }, elaia: { rotulo: 'Leitura' }, padrao: { rotulo: 'Contato' } }),
   render(t) {
-    const contatos = ['site', 'telefone', 'email'].map((k) => t.global(k, 't-texto')).join('');
+    const contatos = ['site', 'telefone', 'email'].map((k) => t.contato(k, 't-texto')).join(''); // da Marca, por núcleo
     const topo = IMG_FECH.y, base = IMG_FECH.y + IMG_FECH.h;
     const apoio = t.global('contatoTexto', 't-texto', 'margin:auto 0');
     return `${t.fundo(COR.papel)}
@@ -870,7 +904,7 @@ const O10 = {
         ${t.global('contatoTitulo', 't-chamada fech-chamada', '')}
         ${apoio || '<div style="margin-top:auto"></div>'}
         <div class="contatos" style="border-top:1.5px solid ${regraSobre(COR.papel)};padding-top:${px('filete')}">${contatos}</div>`)}
-      <div class="lockup" style="position:absolute;left:${X(4)}px;top:${ALT - E.selo}px;transform:translateY(-50%);color:${A}">${LOCKUP[t.n.id]()}</div>`;
+      <div class="lockup" style="position:absolute;left:${X(4)}px;top:${(base + ALT) / 2}px;transform:translateY(-50%);color:${A}">${LOCKUP[t.n.id]()}</div>`;
   },
 };
 
@@ -987,12 +1021,21 @@ export function modeloDe(nucleoId, id) {
 
 /** Seta fina para a direita, na altura das maiúsculas do Rótulo. */
 const SETA = '<svg class="seta" viewBox="0 0 30 14" width="30" height="14" aria-hidden="true"><path d="M0 7H28M22 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const SETA_VOLTA = '<svg class="seta" viewBox="0 0 30 14" width="30" height="14" aria-hidden="true"><path d="M30 7H2M8 1L2 7l6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
 /** Renderiza o miolo de um card (1080 × 1440) como HTML. */
 export function renderCard(opc) {
   const modelo = modeloDe(opc.nucleo.id, opc.card.modelo);
   const t = criarContexto({ ...opc, modelo });
   return modelo.render(t) + pontos();
+}
+
+/** Textos de conteúdo do card (Título / Corpo), na ordem em que aparecem: [{ chave, macro, padrao }]. */
+export function textosDe({ card, nucleo, globais }) {
+  const modelo = modeloDe(nucleo.id, card.modelo);
+  const t = criarContexto({ card, indice: 0, total: 2, nucleo, globais, modelo, modo: 'editar', fonteImagem: () => '' });
+  modelo.render(t);
+  return t.textos;
 }
 
 /**
@@ -1047,30 +1090,37 @@ export function colorirPontos(card) {
   card.querySelectorAll(':scope > .ponto').forEach((p) => {
     p.style.background = corSob(card, p.offsetLeft + p.offsetWidth / 2, p.offsetTop + p.offsetHeight / 2);
   });
-  // Carimbo: cada célula pega a cor do que está sob ela. Só linhas → tinta que contrasta;
-  // fundo cheio → a cor do fundo do card sob a célula (papel, sobre imagem) e a tinta que contrasta.
+  // Carimbo inteiro, sem partição: uma cor só para as três células.
+  // Só linhas → transparente, com a tinta que contrasta com a maior parte do que está sob ele;
+  // fundo cheio → a cor lisa que predomina sob ele (papel, quando predomina imagem) e a tinta que contrasta.
   card.querySelectorAll(':scope > .carimbo').forEach((cb) => {
-    const cheio = cb.dataset.fundo === 'cheio';
-    cb.querySelectorAll('.cel').forEach((c) => {
-      const x0 = cb.offsetLeft + c.offsetLeft, y = cb.offsetTop + cb.offsetHeight / 2;
-      const x = x0 + c.offsetWidth / 2;
-      // extensão real do texto na célula (o card pode estar em escala)
-      const k = card.getBoundingClientRect().width / card.offsetWidth || 1;
-      const rg = document.createRange();
-      rg.selectNodeContents(c);
-      const r = rg.getBoundingClientRect(), base = card.getBoundingClientRect().left;
-      const xa = r.width ? (r.left - base) / k : x, xb = r.width ? (r.right - base) / k : x;
-      // célula mista (metade sobre imagem, metade sobre fundo liso, como no O-06 com painel):
-      // mesmo em "só linhas" ela ganha o fundo liso, para o texto não sumir no meio
-      const mista = corSob(card, xa, y) !== corSob(card, xb, y);
-      if (!cheio && !mista) { c.style.background = ''; c.style.color = corSob(card, x, y); return; }
-      let f = fundoSob(card, x, y);
-      if (mista && f.img) f = [fundoSob(card, xa, y), fundoSob(card, xb, y)].find((o) => !o.img) || f;
-      const cor = f.img ? [250, 250, 247] : f.cor;
-      c.style.background = `rgb(${cor.slice(0, 3).join(',')})`;
-      c.style.color = lumDe(cor) < 0.5 ? B : A;
-    });
+    const y = cb.offsetTop + cb.offsetHeight / 2, N = 15;
+    const xs = Array.from({ length: N }, (_, i) => cb.offsetLeft + (cb.offsetWidth * (i + 0.5)) / N);
+    cb.querySelectorAll('.cel').forEach((c) => { c.style.background = ''; c.style.color = ''; });
+    if (cb.dataset.fundo !== 'cheio') {
+      cb.style.background = '';
+      cb.style.color = maioria(xs.map((x) => corSob(card, x, y)));
+      return;
+    }
+    const fundos = xs.map((x) => fundoSob(card, x, y));
+    const lisos = fundos.filter((f) => !f.img).map((f) => f.cor.slice(0, 3).join(','));
+    const cor = lisos.length > N / 2 ? maioria(lisos).split(',').map(Number) : [250, 250, 247];
+    cb.style.background = `rgb(${cor.join(',')})`;
+    cb.style.color = lumDe(cor) < 0.5 ? B : A;
   });
+  // Selo: quando a imagem chega até ele (texto desligado), a cor passa a contrastar com a imagem
+  card.querySelectorAll(':scope > .selo').forEach((s) => {
+    const x = LARG / 2, y = ALT - E.selo;
+    const topo = [...card.children].reverse().find((el) => (el.classList.contains('bloco') || el.classList.contains('slot'))
+      && x >= el.offsetLeft && x <= el.offsetLeft + el.offsetWidth && y >= el.offsetTop && y <= el.offsetTop + el.offsetHeight);
+    s.style.color = topo?.classList.contains('slot') && !topo.dataset.vazio ? corSob(card, x, y) : s.dataset.cor;
+  });
+}
+
+function maioria(lista) {
+  const n = new Map();
+  lista.forEach((v) => n.set(v, (n.get(v) || 0) + 1));
+  return [...n.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
 const resolverExemplo = (m, nid) => (typeof m?.exemplo === 'function' ? m.exemplo(nid) : { ...(m?.exemplo || {}) });
@@ -1117,6 +1167,12 @@ const IMG_MIN = 220;
 export function ajustarLayout(raiz) {
   raiz.querySelectorAll('[data-fit]').forEach(ajustar);
   raiz.querySelectorAll('[data-cresce]').forEach(crescer);
+  refluir(raiz);
+}
+
+/** Reposiciona imagens e painéis que dependem dos textos (segue/antes) e recolore pontos, carimbo e selo.
+ *  Roda a cada digitação: as imagens são empurradas para cima e para baixo à medida que o texto cresce. */
+export function refluir(raiz) {
   raiz.querySelectorAll('[data-segue]').forEach((el) => seguir(el, raiz));
   raiz.querySelectorAll('[data-antes]').forEach((el) => anteceder(el, raiz));
   const cards = raiz.classList?.contains('card') ? [raiz] : raiz.querySelectorAll('.card');
@@ -1141,10 +1197,20 @@ function fimDoBloco(bloco) {
   return bloco.offsetTop + b;
 }
 
+/** Bloco sem nada visível (todos os textos desligados ou vazios na exportação). */
+const blocoVazio = (bloco) => ![...bloco.querySelectorAll('*')].some((c) => c.offsetHeight && (c.textContent.trim() || c.dataset.ph || c.dataset.campo));
+
 export function seguir(el, raiz) {
   const card = raiz.classList?.contains('card') ? raiz : el.closest('.card') || raiz;
   const bloco = card.querySelector(`[data-bloco="${el.dataset.segue}"]`);
   if (!bloco) return;
+  if (blocoVazio(bloco)) {
+    // sem texto, a imagem sobe até o topo do card (e o painel some)
+    const fim = Number(el.dataset.fim || ALT);
+    if (el.dataset.modo === 'altura') el.style.height = '0px';
+    else { el.style.top = '0px'; el.style.height = fim + 'px'; }
+    return;
+  }
   const y = Math.round(fimDoBloco(bloco) + Number(el.dataset.gap || 96));
   if (el.dataset.modo === 'altura') {
     el.style.height = Math.max(0, y - el.offsetTop) + 'px';
@@ -1170,6 +1236,7 @@ export function anteceder(el, raiz) {
   const card = raiz.classList?.contains('card') ? raiz : el.closest('.card') || raiz;
   const bloco = card.querySelector(`[data-bloco="${el.dataset.antes}"]`);
   if (!bloco) return;
+  if (blocoVazio(bloco)) { el.style.height = ALT - el.offsetTop + 'px'; return; } // sem texto, a imagem desce até a base
   const fim = Math.round(inicioDoBloco(bloco) - Number(el.dataset.gap || E.bloco));
   el.style.height = Math.max(IMG_MIN, fim - el.offsetTop) + 'px';
 }

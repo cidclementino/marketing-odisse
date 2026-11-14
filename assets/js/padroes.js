@@ -9,25 +9,34 @@ export const FORMATOS = [
 ];
 
 /**
- * Estilos de texto. `tamanho` é um número (corpo fixo) ou [mín, máx]: estilos com faixa
+ * Estilos de texto: Título 01–03, Corpo 01–03 e Rótulo. Os ids e classes (t-capa, t-titulo…) são os
+ * originais e não mudam, porque as publicações salvas dependem deles. `tamanho` é um número (corpo fixo) ou [mín, máx]: estilos com faixa
  * ajustam o corpo para caber na área do modelo, começando pelo máximo.
  */
 export const TEXTO = [
-  { id: 'capa', nome: 'Capa', classe: 't-capa', peso: 700, tamanho: [80, 120], entrelinha: 0.94, tracking: -0.04,
+  { id: 'capa', nome: 'Título 01', macro: 'titulo', classe: 't-capa', peso: 700, tamanho: [80, 120], entrelinha: 0.94, tracking: -0.04,
     uso: 'Título da capa e nome do projeto.' },
-  { id: 'titulo', nome: 'Título', classe: 't-titulo', peso: 700, tamanho: [64, 104], entrelinha: 0.96, tracking: -0.035,
+  { id: 'titulo', nome: 'Título 02', macro: 'titulo', classe: 't-titulo', peso: 700, tamanho: [64, 104], entrelinha: 0.96, tracking: -0.035,
     uso: 'Título dos cards de corpo e dos posts únicos.' },
-  { id: 'chamada', nome: 'Chamada', classe: 't-chamada', peso: 700, tamanho: 72, entrelinha: 0.98, tracking: -0.03,
+  { id: 'chamada', nome: 'Título 03', macro: 'titulo', classe: 't-chamada', peso: 700, tamanho: 72, entrelinha: 0.98, tracking: -0.03,
     uso: 'Chamada do fechamento, subtítulos e numeração de etapas (01, 02, 03).' },
-  { id: 'citacao', nome: 'Citação', classe: 't-citacao', peso: 480, tamanho: [52, 70], entrelinha: 1.1, tracking: -0.025,
+  { id: 'citacao', nome: 'Corpo 01', macro: 'corpo', classe: 't-citacao', peso: 480, tamanho: [52, 70], entrelinha: 1.1, tracking: -0.025,
     uso: 'Citações em destaque.' },
-  { id: 'texto', nome: 'Texto', classe: 't-texto', peso: 400, tamanho: 29, entrelinha: 1.34, tracking: -0.01,
+  { id: 'texto', nome: 'Corpo 02', macro: 'corpo', classe: 't-texto', peso: 400, tamanho: 29, entrelinha: 1.34, tracking: -0.01,
     uso: 'Texto de apoio, colunas de texto, valores da ficha e contatos.' },
-  { id: 'legenda', nome: 'Legenda', classe: 't-legenda', peso: 400, tamanho: 24, entrelinha: 1.3, tracking: 0,
+  { id: 'legenda', nome: 'Corpo 03', macro: 'corpo', classe: 't-legenda', peso: 400, tamanho: 24, entrelinha: 1.3, tracking: 0,
     uso: 'Legendas de imagem, créditos, subtítulo de capa e colunas curtas.' },
   { id: 'rotulo', nome: 'Rótulo', classe: 't-rotulo', peso: 600, tamanho: 20, entrelinha: 1.2, tracking: 0.08, caixaAlta: true,
     uso: 'Cabeçalho do card, rótulos, assinatura, rótulos da ficha e rodapés.' },
 ];
+
+/** Macroestilos: cada texto de conteúdo é Título ou Corpo e pode usar qualquer um dos três estilos do seu macro
+ *  (Personalização do card → Textos). O Rótulo fica fora: é estilo de sistema. */
+export const MACROS = {
+  titulo: { nome: 'Título', classes: ['t-capa', 't-titulo', 't-chamada'] },
+  corpo: { nome: 'Corpo', classes: ['t-citacao', 't-texto', 't-legenda'] },
+};
+export const MACRO_DA_CLASSE = Object.fromEntries(Object.entries(MACROS).flatMap(([id, m]) => m.classes.map((c) => [c, id])));
 
 export const TEXTO_POR_CLASSE = Object.fromEntries(TEXTO.map((t) => [t.classe, t]));
 export const corpoMax = (t) => (Array.isArray(t.tamanho) ? t.tamanho[1] : t.tamanho);
