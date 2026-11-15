@@ -202,7 +202,7 @@ function fonteImagem(card, slot) {
   const src = im?.ref ? imagens.get(im.ref) : im?.src;
   if (!src) return null;
   const trat = NUCLEOS[pub?.nucleo || 'estudio'].tratamento;
-  if (im.original || trat.tipo === 'nenhum') return src;
+  if (semTratamento(im) || trat.tipo === 'nenhum') return src;
   const k = `${pub.nucleo}:${im.ref || card.id + slot}`;
   if (typeof tratadas.get(k) === 'string') return tratadas.get(k);
   if (!tratadas.has(k)) {
@@ -215,6 +215,10 @@ function fonteImagem(card, slot) {
   }
   return src;
 }
+/** A imagem sai sem o tratamento do núcleo? Vale a escolha da própria imagem; senão, a da publicação. */
+function semTratamento(im) {
+  return im.original ?? !!pub?.globais?.semTratamento;
+}
 async function aguardarTratamentos(cards) {
   const trat = nucleo().tratamento;
   if (trat.tipo === 'nenhum') return;
@@ -222,7 +226,7 @@ async function aguardarTratamentos(cards) {
   for (const c of cards) for (const s of Object.keys(c.imgs)) {
     const im = c.imgs[s];
     const src = im?.ref ? imagens.get(im.ref) : null;
-    if (!src || im.original) continue;
+    if (!src || semTratamento(im)) continue;
     const k = `${pub.nucleo}:${im.ref}`;
     if (typeof tratadas.get(k) !== 'string') tarefas.push(tratar(src, trat).then((o) => tratadas.set(k, o)));
   }
@@ -429,6 +433,15 @@ function renderGlobais() {
     const input = `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${c.k === '__titulo' ? ' placeholder="Ex.: Apto RP 201 · lançamento"' : ''}>`;
     h += `<label class="campo" data-campo-global="${c.k}"><span>${elaia ? c.rotElaia : c.rot}${info(elaia ? c.dicaElaia : c.dica)}</span>${input}</label>`;
   }
+  // Tratamento de imagem do núcleo (duotone): liga/desliga para todas as imagens da publicação
+  if (n.tratamento.tipo !== 'nenhum') {
+    const sem = !!g.semTratamento;
+    h += `<div class="campo opcao"><span>Tratamento das imagens${info(`${n.tratamentoNome}, automático no ${n.nome}. Vale para todas as imagens da publicação; cada imagem ainda pode ser trocada em Imagens.`)}</span>
+      <div class="seg" role="group" aria-label="Tratamento das imagens">
+        <button data-trat="nucleo" class="${sem ? '' : 'ativo'}" aria-pressed="${!sem}">${n.tratamentoNome.split(',')[0]}</button>
+        <button data-trat="original" class="${sem ? 'ativo' : ''}" aria-pressed="${sem}">Original</button>
+      </div></div>`;
+  }
   $('#globaisPub').innerHTML = h;
 }
 
@@ -532,8 +545,8 @@ function renderImagens() {
       continue;
     }
     const trat = n.tratamento.tipo !== 'nenhum'
-      ? `<button data-acao="tratada" data-slot="${s}" class="${!im.original ? 'ativo' : ''}">${n.tratamentoNome.split(',')[0]}</button>
-         <button data-acao="original" data-slot="${s}" class="${im.original ? 'ativo' : ''}">Original</button>`
+      ? `<button data-acao="tratada" data-slot="${s}" class="${!semTratamento(im) ? 'ativo' : ''}">${n.tratamentoNome.split(',')[0]}</button>
+         <button data-acao="original" data-slot="${s}" class="${semTratamento(im) ? 'ativo' : ''}">Original</button>`
       : '';
     h += `<div class="img-item" data-slot="${s}">
       <div class="img-topo"><div class="th" style="background-image:url('${th}')"></div><div><b>${nome}</b><span>${im.w} × ${im.h}px</span></div></div>
@@ -1018,6 +1031,18 @@ function ligarEventos() {
   glob.addEventListener('input', (e) => {
     const k = e.target.dataset.k;
     if (k) aoMudarGlobal(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+  });
+
+  glob.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-trat]');
+    if (!b) return;
+    pub.globais.semTratamento = b.dataset.trat === 'original';
+    // a escolha da publicação passa a valer para todas as imagens (as escolhas imagem a imagem são zeradas)
+    for (const c of pub.cards) for (const im of Object.values(c.imgs || {})) if (im) delete im.original;
+    salvar();
+    renderGlobais();
+    renderTrilho();
+    renderImagens();
   });
 
   // Modelos
