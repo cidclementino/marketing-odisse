@@ -925,7 +925,40 @@ const O13 = {
   },
 };
 
-const UNIVERSAIS = [O01, O02, O03, O04, O05, O06, O07, O08, O09, O10, O11, O12, O13];
+// O-14: o O-03 sobre imagem inteira — os textos numa caixa com a cor de preenchimento
+const RESPIRO_CAIXA = E.bloco;
+const O14 = {
+  id: 'o14', cod: 'O-14',
+  nome: 'Imagem + caixa de texto',
+  desc: 'Imagem inteira ao fundo; rótulo (opcional), título e texto de apoio numa caixa com a cor de preenchimento, no topo ou na base do recorte quadrado. A caixa cresce com o texto.',
+  slots: { a: 'Imagem de fundo' },
+  opcoes: [
+    op('caixa', 'Caixa de texto', [['alto', 'Topo'], ['pe', 'Base']], 'pe'),
+    op('rotulo', 'Rótulo acima do título', [['nao', 'Sem'], ['sim', 'Com']], 'nao'),
+  ],
+  rotulo: (t) => t.op('rotulo') === 'sim',
+  preenche: () => COR.papel,
+  exemplo: porNucleo(EX_TESE),
+  render(t) {
+    const pad = RESPIRO_CAIXA;
+    const miolo = [
+      t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`),
+      t.campo('titulo', 't-titulo', '', { fit: 340 }),
+      // texto de apoio: começa na coluna 5 do card (descontado o respiro da caixa) e vai para a largura toda se passar de 5 linhas
+      t.campo('texto', 't-texto', `margin-top:${px('bloco')};margin-left:${X(5) - M - pad}px`, { attrs: ` data-cresce="5,1" data-recuo="${pad}"` }),
+    ].join('');
+    const ancora = t.op('caixa') === 'alto' ? `top:${QUADRO}px` : `bottom:${ALT - FIM}px`;
+    const caixa = miolo.trim()
+      ? `<div class="bloco fluxo caixa" style="left:${M}px;width:${W12}px;${ancora};max-height:${FIM - QUADRO}px;padding:${pad}px;box-sizing:border-box;background:${t.f};color:${t.tinta}">${miolo}</div>`
+      : '';
+    return `${t.img('a', 0, 0, LARG, ALT)}${t.veuTopo()}${t.veuBase(300, 0.55)}
+      ${t.cab(B)}
+      ${caixa}
+      ${t.selo(B)}`;
+  },
+};
+
+const UNIVERSAIS = [O01, O02, O03, O04, O05, O06, O07, O08, O09, O10, O11, O12, O13, O14];
 const UNIV_POR_ID = Object.fromEntries(UNIVERSAIS.map((m) => [m.id, m]));
 
 /** Cards de versões anteriores → universal + opções equivalentes (a aparência não muda). */
@@ -1226,8 +1259,9 @@ export function podar(bloco) {
 export function crescer(el) {
   const estagios = el.dataset.cresce.split(',').map(Number);
   const lh = parseFloat(getComputedStyle(el).lineHeight) || 39;
+  const recuo = Number(el.dataset.recuo || 0); // texto dentro de caixa: desconta o respiro dela para seguir o grid do card
   for (const col of estagios) {
-    el.style.marginLeft = X(col) - M + 'px';
+    el.style.marginLeft = Math.max(0, X(col) - M - recuo) + 'px';
     if (Math.round(el.scrollHeight / lh) <= LINHAS_MAX) break;
   }
 }
