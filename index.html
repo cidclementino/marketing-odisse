@@ -9,7 +9,7 @@
   <script type="importmap">
   {
     "imports": {
-      "./assets/js/app.js": "./assets/js/app.js?v=aa26b6b94d",
+      "./assets/js/app.js": "./assets/js/app.js?v=f39a25d0aa",
       "./assets/js/imaging.js": "./assets/js/imaging.js?v=0055923bbd",
       "./assets/js/marca.js": "./assets/js/marca.js?v=b107903fe5",
       "./assets/js/marks.js": "./assets/js/marks.js?v=9eb5609f68",
@@ -18,11 +18,13 @@
       "./assets/js/metricas/modelo.js": "./assets/js/metricas/modelo.js?v=1708260e9e",
       "./assets/js/metricas/paginas.js": "./assets/js/metricas/paginas.js?v=53de141b7c",
       "./assets/js/nucleos.js": "./assets/js/nucleos.js?v=dde87f2eb3",
-      "./assets/js/nuvem.js": "./assets/js/nuvem.js?v=0a7c7b2f90",
+      "./assets/js/nuvem.js": "./assets/js/nuvem.js?v=60c7e8c715",
       "./assets/js/padroes.js": "./assets/js/padroes.js?v=b0b7f6886a",
+      "./assets/js/pagina-calendario.js": "./assets/js/pagina-calendario.js?v=173d38fdae",
       "./assets/js/pagina-metricas.js": "./assets/js/pagina-metricas.js?v=e3cdd5a3de",
       "./assets/js/pagina-padroes.js": "./assets/js/pagina-padroes.js?v=6ef5f16288",
-      "./assets/js/pinterest.js": "./assets/js/pinterest.js?v=49140e9e32",
+      "./assets/js/pinterest.js": "./assets/js/pinterest.js?v=24eb256430",
+      "./assets/js/pool.js": "./assets/js/pool.js?v=b80c995f0c",
       "./assets/js/store.js": "./assets/js/store.js?v=a4c6d728d8",
       "./assets/js/templates.js": "./assets/js/templates.js?v=face0537a8"
     }
@@ -30,7 +32,7 @@
   </script>
   <!-- /VERSOES -->
   <link rel="stylesheet" href="assets/css/card.css?v=03e46c1ae1">
-  <link rel="stylesheet" href="assets/css/app.css?v=7a1b256e0c">
+  <link rel="stylesheet" href="assets/css/app.css?v=9a49c695e2">
 </head>
 <body class="vista-login">
   <!-- Menu geral: no futuro, outras páginas entram aqui -->
@@ -42,7 +44,7 @@
     </a>
     <nav class="menu" aria-label="Menu geral">
       <a class="ativo" href="#/publicacoes" id="menuPub">Publicações</a>
-      <span class="em-breve" title="Em breve">Calendário</span>
+      <a href="#/calendario" id="menuCal">Calendário</a>
       <span class="em-breve" title="Em breve">Biblioteca</span>
       <span class="em-breve" title="Em breve">Estratégia</span>
       <a href="#/metricas" id="menuMetricas">Métricas</a>
@@ -96,6 +98,9 @@
 
   <!-- ===================== PADRÕES ===================== -->
   <main class="padroes" id="padroes"></main>
+
+  <!-- ===================== CALENDÁRIO (pool de mídias) ===================== -->
+  <main class="calendario" id="calendario"></main>
 
   <!-- ===================== MÉTRICAS ===================== -->
   <main class="metricas" id="metricas"></main>
@@ -162,6 +167,7 @@
           <button class="ico" id="btMoverDir" title="Mover o card para a direita">→</button>
         </div>
         <div class="exportar">
+          <button class="txt" id="btPool" title="Envia as mídias prontas ao pool de mídias, para agendar no Calendário">Enviar ao pool</button>
           <button class="txt" id="btExportarCard">Exportar card</button>
           <button class="txt forte" id="btExportarTudo">Exportar carrossel</button>
         </div>
@@ -185,6 +191,6 @@
 
   <script src="vendor/html-to-image.js?v=ad74ac1e13"></script>
   <script src="vendor/jszip.min.js?v=978d62b574"></script>
-  <script type="module" src="assets/js/app.js?v=aa26b6b94d"></script>
+  <script type="module" src="assets/js/app.js?v=f39a25d0aa"></script>
 </body>
 </html>

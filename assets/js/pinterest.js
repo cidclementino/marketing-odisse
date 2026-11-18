@@ -178,6 +178,7 @@ export function textosDoLote({ projeto, nucleo, pins }) {
     linhas.push(
       '----------------------------------------------------------------',
       `${p.numero} · ${p.arquivo}`,
+      ...(p.dia ? [`Dia: ${new Date(`${p.dia}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}`] : []),
       `Pasta: ${p.pasta || '—'}`,
       `Título: ${p.titulo || '—'}`,
       `Descrição: ${p.descricao || '—'}`,

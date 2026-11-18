@@ -7,6 +7,8 @@ import {
   modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, SEQUENCIA_PIN, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, estruturaDe, LARG,
 } from './templates.js';
 import * as pinterest from './pinterest.js';
+import * as pool from './pool.js';
+import { renderCalendario } from './pagina-calendario.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import * as local from './store.js';
@@ -489,8 +491,14 @@ function renderEditor() {
   $('#cardRot').textContent = pin ? 'Dados do pin' : 'Dados do card';
   $('#btExportarCard').textContent = pin ? 'Exportar pin' : 'Exportar card';
   $('#btExportarTudo').textContent = pin ? 'Exportar lote (.zip)' : 'Exportar carrossel';
-  $('#btExportarCard').title = pin ? 'PNG em 1000 × 1500' : 'JPG em 1080 × 1440';
-  $('#btExportarTudo').title = pin ? 'Todos os pins em PNG, com o textos.txt (título, descrição, pasta e link de cada pin)' : 'Todos os cards em JPG, num .zip';
+  $('#btExportarCard').title = pin ? 'JPG em 1000 × 1500' : 'JPG em 1080 × 1440';
+  $('#btExportarTudo').title = pin ? 'Todos os pins em JPG, com o textos.txt (título, descrição, pasta e link de cada pin)' : 'Todos os cards em JPG, num .zip';
+  $('#btPool').title = pin
+    ? 'Envia todos os pins ao pool de mídias (imagem e textos), para agendar no Calendário. Reenviar atualiza o que ainda não foi publicado.'
+    : 'Envia o carrossel ao pool de mídias, para agendar no Calendário. Reenviar atualiza, se ainda não foi publicado.';
+  // pool por baixo: avisa no painel de imagens quando a foto já está no pool
+  const alvo = pub;
+  pool.carregar().then(() => { if (pub === alvo && ehPin()) renderImagens(); }).catch(() => {});
   renderGuias();
   renderGlobais();
   renderTrilho();
@@ -539,6 +547,12 @@ function renderGlobais() {
         <button data-trat="nucleo" class="${sem ? '' : 'ativo'}" aria-pressed="${!sem}">${n.tratamentoNome.split(',')[0]}</button>
         <button data-trat="original" class="${sem ? 'ativo' : ''}" aria-pressed="${sem}">Original</button>
       </div></div>`;
+  }
+  // Origem (ordem de entrada no Pinterest): vai para o pool com cada pin
+  if (pin) {
+    const o = g.origem || 'acervo';
+    h += `<div class="campo opcao"><span>Origem${info('Ordem de entrada: acervo (o que já está nos sites), fluxo contínuo (material novo) e imprensa. Cada pin leva a etiqueta ao pool de mídias; lá ela pode ser trocada.')}</span>
+      <div class="seg" role="group" aria-label="Origem">${pool.ORIGENS.map(([v, r]) => `<button data-origem="${v}" class="${o === v ? 'ativo' : ''}" aria-pressed="${o === v}">${r}</button>`).join('')}</div></div>`;
   }
   $('#globaisPub').innerHTML = h;
 }
@@ -649,8 +663,9 @@ function renderImagens() {
          <button data-acao="original" data-slot="${s}" class="${semTratamento(im) ? 'ativo' : ''}">Original</button>`
       : '';
     const amplia = ehPin() ? ampliacao(c, s, im) : 0;
-    const avisoRes = amplia > 1.02
+    let avisoRes = amplia > 1.02
       ? `<small class="img-aviso">Será ampliada ${Math.round((amplia - 1) * 100)}% na exportação (1000 × 1500). Prefira uma imagem maior.</small>` : '';
+    if (ehPin()) avisoRes += avisoDeUso(c, im);
     h += `<div class="img-item" data-slot="${s}">
       <div class="img-topo"><div class="th" style="background-image:url('${th}')"></div><div><b>${nome}</b><span>${im.w} × ${im.h}px</span>${avisoRes}</div></div>
       <div class="img-acoes">
@@ -668,6 +683,23 @@ function renderImagens() {
   }
   el.innerHTML = h;
   renderPinterest(c);
+}
+
+/** A foto já está em outro item do pool? (a mesma imagem não volta; um novo recorte, sim) */
+let hashPendente = false;
+function avisoDeUso(c, im) {
+  const src = im?.ref ? imagens.get(im.ref) : null;
+  if (!src || !pool.lista().length) return '';
+  const h = pool.hashPronto(src);
+  if (!h) {
+    if (!hashPendente) { hashPendente = true; pool.hashDe(src).then(() => { hashPendente = false; if (pub) renderImagens(); }); }
+    return '';
+  }
+  const usos = pool.usosDaFoto(h, [c.id, c.pin?.par].filter(Boolean));
+  if (!usos.length) return '';
+  const pub_ = usos.find((u) => u.status === 'publicado');
+  const quando = pub_ ? `publicada em ${pool.dataCurta(pub_.publicadoEm || pub_.dia)}` : `no pool (${usos.length})`;
+  return `<small class="img-aviso info-uso">Esta foto já está ${quando}. Um novo recorte ou ângulo pode; a mesma imagem não volta.</small>`;
 }
 
 /** Quanto a imagem é ampliada na exportação (1 = pixel a pixel), pela área que ocupa no card ativo. */
@@ -1026,9 +1058,9 @@ function dataArquivo() {
   return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
 const nomeBase = () => slug(pub.titulo || pub.globais.projeto) || (ehPin() ? 'projeto' : 'post');
-/** Post: AAMMDD-NNN-nn-assunto.jpg · Pin: AAMMDD-NNN-nn-assunto-pin.png (versão em inglês: …-en-pin.png). */
+/** Post: AAMMDD-NNN-nn-assunto.jpg · Pin: AAMMDD-NNN-nn-assunto-pin.jpg (versão em inglês: …-en-pin.jpg). */
 const nomeArquivo = (i) => (ehPin()
-  ? `${codigoPin(i)}-${nomeBase()}${pub.cards[i].pin?.idioma === 'en' ? '-en' : ''}-pin.png`
+  ? `${codigoPin(i)}-${nomeBase()}${pub.cards[i].pin?.idioma === 'en' ? '-en' : ''}-pin.jpg`
   : `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${nomeBase()}.jpg`);
 
 async function montarCard(p, i) {
@@ -1043,8 +1075,8 @@ async function montarCard(p, i) {
   return no;
 }
 
-/** Post: JPG otimizado, 1080 × 1440, sRGB, qualidade 0,86 (bom equilíbrio para o Instagram, que recomprime).
- *  Pin: PNG 1000 × 1500, desenhado em 1080 × 1620 e reduzido (a margem de 52 vira 48). */
+/** JPG otimizado, sRGB, qualidade 0,86 (bom equilíbrio para redes que recomprimem).
+ *  Post: 1080 × 1440. Pin: 1000 × 1500, desenhado em 1080 × 1620 e reduzido (a margem de 52 vira 48). */
 const QUALIDADE_JPG = 0.86;
 async function gerarArquivo(i) {
   const no = await montarCard(pub, i);
@@ -1054,7 +1086,7 @@ async function gerarArquivo(i) {
   await window.htmlToImage.toCanvas(no, opc); // 1ª passada carrega as fontes
   const canvas = await window.htmlToImage.toCanvas(no, opc);
   $('#exportador').innerHTML = '';
-  return new Promise((ok) => canvas.toBlob(ok, ehPin() ? 'image/png' : 'image/jpeg', QUALIDADE_JPG));
+  return new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', QUALIDADE_JPG));
 }
 
 async function gerarCapa(p) {
@@ -1076,12 +1108,12 @@ function baixar(url, nome) {
 
 async function exportarCard() {
   const pin = ehPin();
-  aviso(pin ? 'Gerando PNG…' : 'Gerando JPG…');
+  aviso('Gerando JPG…');
   await aguardarTratamentos([cardAtivo()]);
   const u = URL.createObjectURL(await gerarArquivo(pub.ativo));
   baixar(u, nomeArquivo(pub.ativo));
   setTimeout(() => URL.revokeObjectURL(u), 4000);
-  aviso(pin ? 'PNG exportado em 1000 × 1500.' : 'JPG exportado em 1080 × 1440.');
+  aviso(pin ? 'JPG exportado em 1000 × 1500.' : 'JPG exportado em 1080 × 1440.');
   salvarNaNuvem({ silencioso: true });
 }
 
@@ -1127,11 +1159,100 @@ async function exportarTudo() {
   salvarNaNuvem({ silencioso: true });
 }
 
+// ---- Pool de mídias ----------------------------------------------------------------
+
+async function miniatura(blob, larg = 160) {
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement('canvas');
+  c.width = larg;
+  c.height = Math.round((bmp.height * larg) / bmp.width);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.72);
+}
+
+/** Fotos de origem dos cards (hash da imagem original + recorte), para o controle de repetição. */
+async function fontesDe(indices) {
+  const out = [];
+  for (const i of indices) {
+    for (const im of Object.values(pub.cards[i].imgs || {})) {
+      const src = im?.ref ? imagens.get(im.ref) : null;
+      if (src) out.push({ hash: await pool.hashDe(src), x: im.x ?? 50, y: im.y ?? 50, z: im.z ?? 1 });
+    }
+  }
+  return out;
+}
+
+/**
+ * Envia ao pool: cada pin vira um item (pl-<card>); o carrossel inteiro, um item (pl-<publicação>).
+ * Reenviar substitui imagens e textos e mantém dia, situação e origem; o que já foi publicado não muda.
+ */
+async function enviarAoPool() {
+  const pin = ehPin();
+  const alvo = pub;
+  try { await pool.carregar(true); } catch (e) { console.warn(e); aviso('Não foi possível ler o pool na nuvem.'); return; }
+  await aguardarTratamentos(alvo.cards);
+  const unidades = pin ? alvo.cards.map((_, i) => [i]) : [alvo.cards.map((_, i) => i)];
+  const lote = pin ? lotePins() : null;
+  const agora = new Date().toISOString();
+  let novos = 0, atualizados = 0, publicados = 0, repetidos = 0;
+  try {
+    for (let u = 0; u < unidades.length; u++) {
+      const idx = unidades[u];
+      const card = alvo.cards[idx[0]];
+      const id = pin ? `pl-${card.id}` : `pl-${alvo.id}`;
+      const ant = pool.item(id);
+      if (ant?.status === 'publicado') { publicados++; continue; }
+      aviso(pin ? `Enviando ao pool: pin ${u + 1} de ${unidades.length}…` : 'Enviando o carrossel ao pool…');
+      const imgs = [];
+      let mini = '';
+      for (const i of idx) {
+        const blob = await gerarArquivo(i);
+        const ref = uid('m');
+        await nuvem.enviarBlob(ref, blob);
+        imgs.push({ ref, nome: nomeArquivo(i) });
+        if (!mini) mini = await miniatura(blob);
+      }
+      const fontes = await fontesDe(idx);
+      const par = pin && card.pin?.par ? `pl-${card.pin.par}` : '';
+      const l = pin ? lote[idx[0]] : null;
+      const it = {
+        id, rede: pin ? 'pinterest' : 'instagram', formato: formatoDe(alvo), pub: alvo.id, card: pin ? card.id : null,
+        nucleo: alvo.nucleo, projeto: alvo.globais.projeto || tituloDe(alvo), titulo: pin ? l.titulo : tituloDe(alvo),
+        imagens: imgs, miniatura: mini,
+        pin: pin ? { titulo: l.titulo, descricao: l.descricao, alt: l.alt, pasta: card.pin?.pasta || '', pastaNome: l.pasta, link: l.link, idioma: l.idioma, tipo: l.tipo } : null,
+        avisos: pin ? l.avisos : [],
+        fontes, par,
+        origem: ant?.origem || alvo.globais.origem || (pin ? 'acervo' : 'fluxo'),
+        status: ant?.status || 'pronto', dia: ant?.dia || '', publicadoEm: ant?.publicadoEm || '',
+        criado: ant?.criado || agora,
+      };
+      it.repete = pool.repeticoes(fontes, [id, par]);
+      if (it.repete.some((r) => r.exata)) repetidos++;
+      await pool.gravar(it);
+      if (ant) atualizados++; else novos++;
+    }
+  } catch (e) {
+    console.warn(e);
+    if (e.message === 'senha incorreta') return sair();
+    aviso('Não foi possível enviar ao pool. Tente de novo.');
+    return;
+  }
+  const partes = [];
+  if (novos) partes.push(`${novos} ${novos === 1 ? 'nova' : 'novas'}`);
+  if (atualizados) partes.push(`${atualizados} ${atualizados === 1 ? 'atualizada' : 'atualizadas'}`);
+  let msg = partes.length ? `Pool de mídias: ${partes.join(', ')}.` : 'Nada enviado.';
+  if (publicados) msg += ` ${publicados} já ${publicados === 1 ? 'publicada ficou' : 'publicadas ficaram'} como estava${publicados === 1 ? '' : 'm'}.`;
+  if (repetidos) msg += ` Atenção: ${repetidos} com imagem e recorte iguais a outro item.`;
+  aviso(msg);
+  if (pub === alvo) renderImagens();
+  salvarNaNuvem({ silencioso: true });
+}
+
 // ===========================================================================
 // Navegação
 
 function mostrar(vista) {
-  for (const v of ['login', 'inicio', 'editor', 'padroes', 'metricas']) document.body.classList.toggle('vista-' + v, vista === v);
+  for (const v of ['login', 'inicio', 'editor', 'padroes', 'metricas', 'calendario']) document.body.classList.toggle('vista-' + v, vista === v);
 }
 
 async function sairDoEditor() {
@@ -1145,11 +1266,13 @@ async function sairDoEditor() {
 let pastasLidas = false;
 async function rotear() {
   if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
-  const m = location.hash.match(/^#\/p\/(.+)$/);
+  const m = location.hash.match(/^#\/p\/([^/]+)(?:\/([^/]+))?$/); // #/p/<publicação>[/<card>]
   // o retorno do login do Meta às vezes chega com o fragmento "#_=_"; volta para as métricas
   if (location.hash === '#_=_') { history.replaceState(null, '', location.pathname + '#/metricas'); }
   const metr = location.hash.startsWith('#/metricas');
-  $('#menuPub').classList.toggle('ativo', !metr);
+  const cal = location.hash.startsWith('#/calendario');
+  $('#menuPub').classList.toggle('ativo', !metr && !cal);
+  $('#menuCal').classList.toggle('ativo', cal);
   if (!pastasLidas) {
     pastasLidas = true;
     pinterest.carregarPastas().then((mudou) => {
@@ -1166,6 +1289,13 @@ async function rotear() {
     await renderMetricas($('#metricas'));
     return;
   }
+  if (cal) {
+    if (pub) await sairDoEditor();
+    document.title = 'Calendário · Universo';
+    mostrar('calendario');
+    await renderCalendario($('#calendario'), location.hash.split('/')[2] || '', { aviso });
+    return;
+  }
   if (location.hash === '#/padroes') {
     if (pub) await sairDoEditor();
     document.title = 'Padrões · Universo';
@@ -1174,10 +1304,15 @@ async function rotear() {
     return;
   }
   if (m) {
-    if (pub?.id === m[1]) return;
+    const irCard = () => {
+      const i = m[2] ? pub?.cards.findIndex((c) => c.id === decodeURIComponent(m[2])) : -1;
+      if (i >= 0) irPara(i);
+    };
+    if (pub?.id === m[1]) { irCard(); return; }
     if (pub) await sairDoEditor();
     if (!resumos.length) await carregarArquivo();
     await abrirPublicacao(decodeURIComponent(m[1]));
+    irCard();
   } else {
     // Publicações: a subpágina do formato (#/publicacoes/posts, #/publicacoes/pins); sem ela, a última aberta
     const sub = location.hash.match(/^#\/publicacoes\/([\w-]+)/)?.[1];
@@ -1330,6 +1465,8 @@ function ligarEventos() {
   });
 
   glob.addEventListener('click', (e) => {
+    const o = e.target.closest('[data-origem]');
+    if (o) { pub.globais.origem = o.dataset.origem; salvar(); renderGlobais(); return; }
     const b = e.target.closest('[data-trat]');
     if (!b) return;
     pub.globais.semTratamento = b.dataset.trat === 'original';
@@ -1559,6 +1696,11 @@ function ligarEventos() {
     renderImagens();
   };
   $('#btExportarCard').onclick = () => exportarCard().catch(erroExport);
+  $('#btPool').onclick = (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    enviarAoPool().catch(erroExport).finally(() => { b.disabled = false; });
+  };
   $('#btExportarTudo').onclick = () => exportarTudo().catch(erroExport);
   $('#navEsq').onclick = () => irPara(pub.ativo - 1);
   $('#navDir').onclick = () => irPara(pub.ativo + 1);

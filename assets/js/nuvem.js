@@ -96,6 +96,19 @@ export async function igMiniatura(mediaId) {
   return (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
 }
 
+/** Imagem já em binário (ex.: JPG exportado para o pool de mídias). */
+export async function enviarBlob(ref, blob) {
+  await req(`/api/imagens/${encodeURIComponent(ref)}`, { method: 'PUT', headers: { 'Content-Type': blob.type || 'image/jpeg' }, body: blob });
+}
+export const baixarBlob = async (ref) => (await req(`/api/imagens/${encodeURIComponent(ref)}`)).blob();
+
+// ---- Pool de mídias -----------------------------------------------------------
+export const poolListar = async () => (await req('/api/pool')).json();
+export const poolGravar = (item) => req(`/api/pool/${encodeURIComponent(item.id)}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item),
+});
+export const poolApagar = (id) => req(`/api/pool/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
 // ---- Configurações comuns (ex.: pastas do Pinterest) ------------------------
 export const lerConfig = (chave) => reqIG(`/api/config/${encodeURIComponent(chave)}`);
 export const gravarConfig = (chave, valor) => reqIG(`/api/config/${encodeURIComponent(chave)}`, 'PUT', valor);

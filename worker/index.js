@@ -6,6 +6,7 @@
 //       resumo:<id>  -> resumo para o arquivo (JSON, inclui miniatura da capa)
 //       img:<ref>    -> imagem original (binário; content-type nos metadados)
 //       cfg:<chave>  -> configurações comuns (pin-pastas: pastas do Pinterest)
+//       pool:<id>    -> item do pool de mídias (JSON; as imagens exportadas ficam em img:<ref>)
 //   - Secret `UNIVERSO_SENHA` -> senha compartilhada pela equipe (Authorization: Bearer <senha>)
 //
 // Rotas (todas exigem a senha):
@@ -16,6 +17,9 @@
 //   HEAD   /api/imagens/:ref         -> 200 se existe
 //   GET    /api/imagens/:ref         -> imagem
 //   PUT    /api/imagens/:ref         -> grava imagem (corpo binário)
+//   GET    /api/pool                 -> pool de mídias (itens prontos, agendados e publicados)
+//   PUT    /api/pool/:id             -> grava o item (e apaga as mídias que ele deixou de usar)
+//   DELETE /api/pool/:id             -> apaga o item e as mídias dele
 //   GET    /api/config/:chave        -> configuração comum (ex.: pin-pastas); null se não existe
 //   PUT    /api/config/:chave        -> grava a configuração (JSON, até 64 KB)
 //
@@ -120,6 +124,28 @@ export default {
     }
     const [, recurso, id] = partes;
     if (id && !ID.test(id)) return erro('id inválido', 400);
+
+    // pool de mídias: o que foi exportado para publicar, com dia e situação
+    if (recurso === 'pool') {
+      const refs = (it) => new Set((it?.imagens || []).map((m) => m.ref).filter(Boolean));
+      if (!id && request.method === 'GET') return json(await listar(kv, 'pool:'));
+      if (id && request.method === 'PUT') {
+        let item;
+        try { item = await request.json(); } catch { return erro('JSON inválido', 400); }
+        if (item?.id !== id || !Array.isArray(item.imagens)) return erro('item inválido', 400);
+        const ant = await kv.get(`pool:${id}`, 'json');
+        await kv.put(`pool:${id}`, JSON.stringify(item));
+        const novas = refs(item);
+        await Promise.all([...refs(ant)].filter((r) => !novas.has(r)).map((r) => kv.delete(`img:${r}`)));
+        return json({ ok: true });
+      }
+      if (id && request.method === 'DELETE') {
+        const ant = await kv.get(`pool:${id}`, 'json');
+        await kv.delete(`pool:${id}`);
+        await Promise.all([...refs(ant)].map((r) => kv.delete(`img:${r}`)));
+        return json({ ok: true });
+      }
+    }
 
     // configurações comuns a todos os computadores (ex.: pastas do Pinterest)
     if (recurso === 'config' && id) {

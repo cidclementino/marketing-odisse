@@ -24,14 +24,24 @@ O menu geral tem uma entrada só, **Publicações**, com uma subpágina por form
 
 Segue `odisse-estrategia-pinterest.pdf` (nov. 2026). Cada publicação de pins é **um projeto** (peça ou texto), com 8 a 15 pins.
 
-- **Canvas:** desenhado em 1080 × 1620 e exportado em **PNG 1000 × 1500** (a margem de 52 vira 48, a mesma proporção). Sem carimbo e sem pontos; selo do núcleo centrado no rodapé, menor que no Instagram.
+- **Canvas:** desenhado em 1080 × 1620 e exportado em **JPG 1000 × 1500** (qualidade 0,86, como o 3:4) (a margem de 52 vira 48, a mesma proporção). Sem carimbo e sem pontos; selo do núcleo centrado no rodapé, menor que no Instagram.
 - **Modelo universal P-01** com a opção *Composição*: **Imagem plena** (padrão de Arquitetos e Estúdio; no Estúdio, duotone pelo tratamento do núcleo), **Foto sobre painel** (padrão de Objetos) e **Título + imagem** (padrão do Elaia: título e linha de contexto ligados). Recorte pela mesma dinâmica do 3:4 (arrastar, zoom, posição). O painel de imagens avisa quando a imagem será ampliada na exportação.
 - **Campos do Pinterest** (por pin, no painel esquerdo): idioma, título (até 100, sem ponto final), descrição (até 500 contando os créditos), texto alternativo, pasta, link de destino, tipo (imagem ou capa de vídeo). Avisos não impedem a exportação. **+ Versão em inglês** duplica o pin ligado ao original (`pin.par`).
 - **Dados da publicação:** projeto, data dos arquivos, link de destino padrão e créditos (PT e EN), que fecham a descrição de cada pin.
 - **Link com UTMs:** `utm_source=pinterest`, `utm_medium=social`, `utm_campaign=<sigla>-<projeto>`, `utm_content=<AAMMDD-NNN-sigla>[-en]`, `utm_term=<pasta>`.
 - **Pastas:** editáveis na subpágina Pins (nome, o que entra, ordem do perfil), guardadas na nuvem em `cfg:pin-pastas` (`/api/config/pin-pastas`).
-- **Exportação:** `AAMMDD-NNN-nn-assunto-pin.png` (inglês: `…-en-pin.png`); o lote sai em `.zip` com o **textos.txt** (título, descrição, pasta, link, alt, idioma, tipo e avisos de cada pin).
+- **Exportação:** `AAMMDD-NNN-nn-assunto-pin.jpg` (inglês: `…-en-pin.jpg`); o lote sai em `.zip` com o **textos.txt** (título, descrição, pasta, link, alt, idioma, tipo e avisos de cada pin).
 - Código em `assets/js/pinterest.js` (pastas, campos, UTMs, textos.txt) e o modelo em `templates.js` (`P01`, `ALT_PIN`).
+
+## Calendário e pool de mídias (`#/calendario`)
+
+- **Enviar ao pool** (no editor, ao lado da exportação): cada pin vira um item do pool (`pl-<card>`); um carrossel 3:4 inteiro, um item (`pl-<publicação>`). O item guarda os JPGs exportados (`img:<ref>`), uma miniatura, os textos do pin (título, descrição final, alt, pasta, link com UTMs), a origem e as fotos de origem (hash + recorte). Reenviar atualiza imagens e textos e mantém dia, situação e origem; o que já foi publicado não muda.
+- **Situação:** no pool (sem dia) → agendado (com dia) → publicado (marcado à mão, no detalhe). Agendado com dia passado aparece como atrasado.
+- **Calendário:** mês com segunda a domingo; arrastar do pool para um dia, de um dia para outro e de volta ao pool. Contagem de pins por dia (alerta acima de 3). **Distribuir**: agenda os pins prontos a partir de um dia, com 1, 2 ou 3 por dia, um projeto por dia e pastas alternadas. **Lote ↓** em cada semana baixa um .zip com uma pasta por dia e o `textos.txt` (com o dia de cada pin), para o agendador do Pinterest.
+- **Pool de mídias:** por projeto — quantos ainda só no editor, no pool, agendados e publicados; pins por pasta; filtros de situação, origem (acervo, fluxo contínuo, imprensa) e busca. Detalhe de cada item com os textos para copiar, download, origem, dia e situação.
+- **Repetição:** a mesma foto com o mesmo recorte em outro item aparece como *repetida*; outro recorte, como *mesma foto* (permitido). O editor avisa no painel de imagens quando a foto já está no pool. O par em outro idioma não conta.
+- **Plataformas:** substitui a planilha `odisse-plataformas-de-publicacao.xlsx` — uma linha por projeto e plataforma (só no editor, no pool, agendados, publicados, pastas, último lote, próximo), com download em .csv.
+- Código: `assets/js/pool.js` (dados, repetição, distribuição) e `assets/js/pagina-calendario.js`. API: `GET/PUT/DELETE /api/pool[/:id]` (KV `pool:<id>`).
 
 ## Métricas (`#/metricas`)
 
@@ -88,6 +98,8 @@ assets/js/marks.js       selos (roda, sol, flor, mão) e logotipos em vetor
 assets/js/imaging.js     leitura de imagem e duotone com grão
 assets/js/app.js         início (subpáginas por formato), arquivo, edição, carrossel e exportação
 assets/js/pinterest.js   pins: pastas, campos do Pinterest, link com UTMs e textos.txt
+assets/js/pool.js        pool de mídias: itens, repetição, distribuição no calendário
+assets/js/pagina-calendario.js  Calendário, Pool de mídias e Plataformas
 assets/js/store.js       armazenamento local (IndexedDB)
 assets/js/nuvem.js       cliente da API
 assets/js/pagina-metricas.js  página de métricas: navegação, filtros e eventos
