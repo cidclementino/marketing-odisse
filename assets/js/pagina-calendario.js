@@ -7,6 +7,7 @@ import * as pool from './pool.js';
 import * as pinterest from './pinterest.js';
 import * as nuvem from './nuvem.js';
 import * as local from './store.js';
+import * as plano from './plano.js';
 import { NUCLEOS, ORDEM_NUCLEOS } from './nucleos.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -17,6 +18,7 @@ const DIAS_SEM = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const STATUS_NOME = Object.fromEntries(pool.STATUS);
 const ORIGEM_NOME = Object.fromEntries(pool.ORIGENS);
 const REDE_NOME = Object.fromEntries(pool.REDES);
+const STATUS_PAUTA = Object.fromEntries(plano.STATUS_PAUTA);
 
 const ui = {
   sub: '',
@@ -28,6 +30,7 @@ const ui = {
   busca: '',
   ritmo: (() => { try { return Number(localStorage.getItem('universo-cal-ritmo')) || 2; } catch { return 2; } })(),
   inicio: '',
+  lado: 'pool',
 };
 let raiz = null, resumos = [], ligado = false, avisar = () => {};
 
@@ -47,10 +50,11 @@ export async function renderCalendario(el, sub, opc = {}) {
   const [mudouPool, lista] = await Promise.all([
     pool.carregar().catch((e) => { console.warn(e); return false; }),
     nuvem.listar().catch(() => null),
+    plano.carregarEstrategia(),
+    plano.carregarPautas(),
   ]);
-  const mudouLista = lista && JSON.stringify(lista) !== JSON.stringify(resumos);
   if (lista) resumos = lista;
-  if ((mudouPool || mudouLista) && document.body.classList.contains('vista-calendario')) desenhar();
+  if (document.body.classList.contains('vista-calendario')) desenhar(); // o plano (grade, pautas) e o pool da nuvem
 }
 
 // ---------------------------------------------------------------------------
@@ -61,13 +65,15 @@ function desenhar() {
   const conteudo = $('.cal-conteudo', raiz);
   const itens = pool.lista();
   const n = (st) => itens.filter((x) => x.status === st).length;
+  const esc_ = plano.escalada();
   const pagina = ui.sub === 'pool' ? paginaPool() : ui.sub === 'plataformas' ? paginaPlataformas() : paginaCalendario();
   const rolagem = raiz.scrollTop;
   conteudo.innerHTML = `
     <section class="met-cab">
       <div>
         <h1>Calendário${info('O pool reúne o que saiu do editor pronto para publicar (botão Enviar ao pool, ao lado da exportação). Aqui cada mídia ganha o seu dia.')}</h1>
-        <p><b>${n('pronto')}</b> no pool · <b>${n('agendado')}</b> ${n('agendado') === 1 ? 'agendado' : 'agendados'} · <b>${n('publicado')}</b> ${n('publicado') === 1 ? 'publicado' : 'publicados'}</p>
+        <p><b>${n('pronto')}</b> no pool · <b>${n('agendado')}</b> ${n('agendado') === 1 ? 'agendado' : 'agendados'} · <b>${n('publicado')}</b> ${n('publicado') === 1 ? 'publicado' : 'publicados'}
+          · <a href="#/estrategia/ciclo" class="cal-esc" title="Escalada: reserva de uma semana de posts prontos e 4 semanas cumpridas">Fase <b>${esc_.fase}</b> · reserva ${esc_.prontos}/${esc_.precisa} · ${esc_.cumpridas} de 4 semanas cumpridas${esc_.pode ? ' · <b>pode avançar</b>' : ''}</a></p>
       </div>
       <div class="met-acoes cal-filtros">
         <div class="chips">${[['todos', 'Todas as redes'], ...pool.REDES].map(([v, r]) => `<button data-rede="${v}" class="${ui.rede === v ? 'ativo' : ''}">${r}</button>`).join('')}</div>
@@ -100,6 +106,34 @@ function tile(it) {
 
 // ---- Calendário ---------------------------------------------------------------
 
+// Encaixe da grade (plano de publicação) num dia: o previsto, o que o ocupa e os avisos.
+const PRAZO_CURTO = { pautas: 'Pautas → ciclo', captacao: 'Captação →', textos: 'Textos →', design: 'Design →', agendar: 'Agendar →', metricas: 'Métricas do ciclo' };
+function prazoCurto(p) {
+  const alvo = p.k === 'metricas' ? '' : ` ${pool.dataCurta(p.alvo)}`;
+  const tit = p.k === 'agendar' ? `Revisão e agendamento da semana de ${pool.dataCurta(p.alvo)}, até sexta ${pool.dataCurta(p.dia)}`
+    : p.k === 'captacao' ? `Captação dos reels das semanas de ${pool.dataCurta(p.alvo)} e ${pool.dataCurta(p.ate)}`
+    : p.k === 'pautas' ? `Pautas do ciclo que começa em ${pool.dataCurta(p.alvo)}`
+    : p.k === 'metricas' ? 'Revisão das métricas do ciclo, antes de fechar as pautas do próximo'
+    : `${p.rot} da semana de ${pool.dataCurta(p.alvo)}`;
+  return `<li class="pz-${p.k}" title="${esc(tit)}">${PRAZO_CURTO[p.k]}${alvo}</li>`;
+}
+
+function encaixeHtml(dia, e, conf, hoje) {
+  const o = plano.ocupantes(dia, e.pos);
+  const n = NUCLEOS[e.nucleo] || NUCLEOS.estudio;
+  const ocup = o.item || o.pauta;
+  const outro = ocup && ocup.nucleo !== e.nucleo;
+  const aviso = conf.get(`${dia}:${e.pos}`) || (outro ? `A grade prevê ${n.nome} neste encaixe` : '');
+  const estado = o.item ? `st-${o.item.status}` : o.pauta ? `pt-${o.pauta.status}` : 'lacuna';
+  let miolo = '';
+  if (o.item) miolo += `<div class="cal-item st-${o.item.status}${o.item.status === 'agendado' && dia < hoje ? ' atrasado' : ''}" draggable="true" data-item="${esc(o.item.id)}" title="${esc(o.item.titulo || '')}">${thumb(o.item)}</div>`;
+  if (o.pauta) miolo += `<span class="enc-pauta pt-${o.pauta.status}" draggable="true" data-pauta="${esc(o.pauta.id)}" title="${esc(`${o.pauta.obra ? o.pauta.obra + ' · ' : ''}${o.pauta.angulo} · ${STATUS_PAUTA[o.pauta.status]}`)}">${esc(o.pauta.angulo || 'Pauta')}</span>`;
+  const rot = e.formato === 'reel' ? `Reel ${e.rotulo}` : 'Post';
+  return `<div class="enc ${estado}${aviso ? ' enc-aviso' : ''}" data-dia="${dia}" data-pos="${e.pos}" style="--cor:${n.painel}"
+      title="${esc([e.horario, plano.rotuloDe(e), n.nome, aviso].filter(Boolean).join(' · '))}">
+    <div class="enc-cab"><i></i><span>${e.horario.slice(0, 3)} · ${rot}</span>${aviso ? '<b>!</b>' : ''}</div>${miolo}</div>`;
+}
+
 function paginaCalendario() {
   const [a, m] = ui.mes.split('-').map(Number);
   const primeiro = `${ui.mes}-01`;
@@ -108,46 +142,45 @@ function paginaCalendario() {
   const fim = pool.somarDias(pool.segundaDe(ultimo), 6);
   const hoje = pool.hoje();
   const itens = pool.lista().filter(passaFiltro);
+  const comGrade = ui.rede !== 'pinterest';
   const porDia = new Map();
   for (const it of itens) if (it.dia) { if (!porDia.has(it.dia)) porDia.set(it.dia, []); porDia.get(it.dia).push(it); }
   const nomeMes = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase());
+  const pautas = plano.listaPautas().filter((p) => ui.nucleo === 'todos' || p.nucleo === ui.nucleo);
 
-  let grade = `<div class="cal-canto"></div>${DIAS_SEM.map((d) => `<div class="cal-dsem">${d}</div>`).join('')}`;
+  let grade = `<div class="cal-canto">Semana</div>${DIAS_SEM.map((d) => `<div class="cal-dsem">${d}</div>`).join('')}`;
   for (let seg = inicio; seg <= fim; seg = pool.somarDias(seg, 7)) {
     const daSemana = itens.filter((x) => x.dia >= seg && x.dia <= pool.somarDias(seg, 6));
+    const c = plano.semanaDoCiclo(seg);
+    const conf = comGrade ? plano.conflitosDaSemana(seg, plano.ocupacao) : new Map();
     grade += `<div class="cal-sem">
       <span>${pool.dataCurta(seg)}</span>
+      <small class="sem-ab" title="Semana ${c.n} do ciclo de 4 · fase ${plano.faseEm(seg)}">Sem. ${c.n} · ${c.ab} · F${plano.faseEm(seg)}</small>
       <button class="mini-bt" data-lote="${seg}" ${daSemana.length ? '' : 'disabled'} title="Baixar o lote desta semana: imagens por dia e textos.txt">Lote ↓</button>
-      <small>${daSemana.length || ''}</small></div>`;
+      ${comGrade ? `<ul class="sem-prazos">${plano.prazosDaSemana(seg).map(prazoCurto).join('')}</ul>` : ''}</div>`;
     for (let i = 0; i < 7; i++) {
       const dia = pool.somarDias(seg, i);
-      const lista = (porDia.get(dia) || []).sort((x, y) => (x.rede > y.rede ? 1 : -1));
-      const pins = lista.filter((x) => x.rede === 'pinterest').length;
+      const encs = comGrade ? plano.encaixesDoDia(dia) : [];
+      const posValidos = new Set(encs.map((x) => x.pos));
+      const lista = (porDia.get(dia) || []).filter((x) => !(x.rede === 'instagram' && x.pos != null && posValidos.has(x.pos)))
+        .sort((x, y) => (x.rede > y.rede ? 1 : -1));
+      const pts = comGrade ? pautas.filter((p) => p.dia === dia && (p.pos == null || !posValidos.has(p.pos))) : [];
+      const pins = (porDia.get(dia) || []).filter((x) => x.rede === 'pinterest').length;
       const fora = dia.slice(0, 7) !== ui.mes;
       grade += `<div class="cal-dia${fora ? ' cal-fora' : ''}${dia === hoje ? ' hoje' : ''}${dia < hoje ? ' passado' : ''}" data-dia="${dia}">
         <div class="cal-dia-cab"><b>${Number(dia.slice(8))}</b>${pins ? `<small class="${pins > pool.RITMO_MAX ? 'excesso' : ''}" title="${pins > pool.RITMO_MAX ? 'Mais de 3 pins no dia (a meta é de 1 a 3)' : 'Pins no dia'}">${pins} ${pins === 1 ? 'pin' : 'pins'}</small>` : ''}</div>
-        <div class="cal-itens">${lista.map((it) => `<div class="cal-item st-${it.status}${it.status === 'agendado' && dia < hoje ? ' atrasado' : ''}" draggable="true" data-item="${esc(it.id)}" title="${esc(`${it.titulo || 'Sem título'} · ${STATUS_NOME[it.status]}`)}">${thumb(it)}</div>`).join('')}</div>
+        ${encs.length ? `<div class="encs">${encs.map((x) => encaixeHtml(dia, x, conf, hoje)).join('')}</div>` : ''}
+        <div class="cal-itens">${lista.map((it) => `<div class="cal-item st-${it.status}${it.status === 'agendado' && dia < hoje ? ' atrasado' : ''}" draggable="true" data-item="${esc(it.id)}" title="${esc(`${it.titulo || 'Sem título'} · ${STATUS_NOME[it.status]}`)}">${thumb(it)}</div>`).join('')}
+          ${pts.map((p) => `<span class="enc-pauta solta pt-${p.status}" draggable="true" data-pauta="${esc(p.id)}" title="${esc(`${p.obra ? p.obra + ' · ' : ''}${p.angulo}`)}">${esc(p.angulo || 'Pauta')}</span>`).join('')}</div>
       </div>`;
     }
   }
 
   const prontos = itens.filter((x) => x.status === 'pronto').sort((x, y) => (x.criado || '').localeCompare(y.criado || ''));
   const pinsProntos = prontos.filter((x) => x.rede === 'pinterest').length;
+  const semDia = pautas.filter((p) => !p.dia && p.status !== 'publicada');
   const inicioDist = ui.inicio || pool.somarDias(hoje, 1);
-  return `<div class="cal-layout">
-    <div class="cal-principal">
-      <div class="cal-barra">
-        <button class="mini-bt" data-mes="-1" aria-label="Mês anterior">‹</button>
-        <h2>${nomeMes}</h2>
-        <button class="mini-bt" data-mes="1" aria-label="Próximo mês">›</button>
-        <button class="bt-link" data-mes="0">Hoje</button>
-        <span class="cal-legenda"><i class="st-agendado"></i>Agendado <i class="st-publicado"></i>Publicado <i class="atrasado"></i>Atrasado</span>
-      </div>
-      <div class="cal-grade">${grade}</div>
-    </div>
-    <aside class="pool-lado" data-soltar="pool">
-      <h2>Pool <small>${prontos.length}</small>${info('Mídias prontas, ainda sem dia. Arraste para um dia do calendário; solte aqui para tirar do calendário. Clique para ver os textos, baixar a imagem ou marcar como publicada.')}</h2>
-      <div class="dist">
+  const ladoPool = `<div class="dist">
         <span>Distribuir os ${pinsProntos} pins prontos${info('Um projeto por dia (um projeto se publica aos poucos), alternando as pastas, até o número de pins por dia escolhido. Começa no dia indicado e respeita o que já está agendado.')}</span>
         <div class="dist-linha">
           <div class="seg" role="group" aria-label="Pins por dia">${[1, 2, 3].map((v) => `<button data-ritmo="${v}" class="${ui.ritmo === v ? 'ativo' : ''}">${v}/dia</button>`).join('')}</div>
@@ -155,7 +188,29 @@ function paginaCalendario() {
         </div>
         <button class="mini-bt forte" data-distribuir ${pinsProntos ? '' : 'disabled'}>Distribuir</button>
       </div>
-      <div class="pool-lista">${prontos.map(tile).join('') || '<p class="vazio">Nada no pool. No editor, use “Enviar ao pool”, ao lado da exportação.</p>'}</div>
+      <div class="pool-lista">${prontos.map(tile).join('') || '<p class="vazio">Nada no pool. No editor, use “Enviar ao pool”, ao lado da exportação.</p>'}</div>`;
+  const ladoPautas = `<p class="vazio">Arraste a pauta para um encaixe da grade (ou para o dia, no caso dos pins). <a href="#/estrategia/pautas">Banco de pautas →</a></p>
+      <div class="pool-lista">${semDia.map((p) => `<div class="pauta-tile pt-${p.status}" draggable="true" data-pauta="${esc(p.id)}" style="--cor:${(NUCLEOS[p.nucleo] || NUCLEOS.estudio).painel}">
+        <b>${esc(p.angulo || 'Pauta')}</b><small>${p.formato === 'reel' ? `Reel ${esc(p.modelo || '')}` : p.formato === 'pin' ? 'Pin' : 'Post'} · ${esc(p.obra || plano.FONTE_POR_ID[p.fonte]?.[1] || '')} · ${STATUS_PAUTA[p.status]}</small></div>`).join('')
+        || '<p class="vazio">Nenhuma pauta sem dia.</p>'}</div>`;
+  return `<div class="cal-layout">
+    <div class="cal-principal">
+      <div class="cal-barra">
+        <button class="mini-bt" data-mes="-1" aria-label="Mês anterior">‹</button>
+        <h2>${nomeMes}</h2>
+        <button class="mini-bt" data-mes="1" aria-label="Próximo mês">›</button>
+        <button class="bt-link" data-mes="0">Hoje</button>
+        <span class="cal-legenda"><i class="lacuna"></i>Lacuna <i class="pautado"></i>Pautado <i class="st-agendado"></i>Agendado <i class="st-publicado"></i>Publicado <i class="atrasado"></i>Atrasado</span>
+      </div>
+      <div class="cal-grade">${grade}</div>
+    </div>
+    <aside class="pool-lado" data-soltar="pool">
+      <div class="seg lado-abas">
+        <button data-lado="pool" class="${ui.lado !== 'pautas' ? 'ativo' : ''}">Pool <small>${prontos.length}</small></button>
+        <button data-lado="pautas" class="${ui.lado === 'pautas' ? 'ativo' : ''}">Pautas <small>${semDia.length}</small></button>
+        ${info('Pool: mídias prontas, ainda sem dia. Pautas: ângulos do banco, ainda sem dia. Arraste para um encaixe da grade ou para o dia; solte aqui para tirar do calendário.')}
+      </div>
+      ${ui.lado === 'pautas' ? ladoPautas : ladoPool}
     </aside>
   </div>`;
 }
@@ -289,6 +344,7 @@ function abrirDetalhe(id) {
     <div class="det-info">
       <h2>${esc(it.titulo || 'Sem título')}</h2>
       <p class="det-sub">Odisse ${n.nome} · ${esc(it.projeto)} · ${REDE_NOME[it.rede]}${it.pin?.pastaNome ? ` · ${esc(it.pin.pastaNome)}` : ''}</p>
+      ${encaixeTexto(it)}
       ${reps ? `<ul class="det-rep">${reps}</ul>` : ''}
       ${it.avisos?.length ? `<ul class="pin-avisos">${it.avisos.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       <div class="det-linha">
@@ -320,7 +376,67 @@ function abrirDetalhe(id) {
   }).catch(() => {});
 }
 
+function encaixeTexto(x) {
+  if (!x.dia || x.pos == null) return '';
+  const e = plano.encaixesDoDia(x.dia)[x.pos];
+  return e ? `<p class="det-enc">Encaixe da grade: ${pool.dataLonga(x.dia)} · ${e.horario} · ${esc(plano.rotuloDe(e))} · ${NUCLEOS[e.nucleo]?.nome || ''}</p>` : '';
+}
+
+/** Detalhe de uma pauta no calendário. */
+function abrirPauta(id) {
+  const p = plano.pauta(id);
+  const dlg = $('#poolDetalhe', raiz);
+  if (!p || !dlg) return;
+  const fo = plano.FONTE_POR_ID[p.fonte];
+  dlg.innerHTML = `<div class="det det-pauta" data-pdet-id="${esc(p.id)}"><div class="det-info">
+    <h2>${esc(p.angulo || 'Pauta')}</h2>
+    <p class="det-sub">${esc(p.obra || 'Sem obra')} · ${fo?.[1] || ''} · Odisse ${NUCLEOS[p.nucleo]?.nome || ''} · ${p.formato === 'reel' ? `Reel ${esc(p.modelo || '')}` : p.formato === 'pin' ? 'Pin' : 'Post'}</p>
+    ${encaixeTexto(p)}
+    <div class="det-linha">
+      <label class="campo"><span>Dia</span><input type="date" data-pdet-dia value="${p.dia || ''}"></label>
+      <div class="opcao"><span>Situação</span><div class="seg">${plano.STATUS_PAUTA.map(([v, r]) => `<button data-pdet-status="${v}" class="${p.status === v ? 'ativo' : ''}">${r}</button>`).join('')}</div></div>
+    </div>
+    ${p.notas ? `<p class="det-nota">${esc(p.notas)}</p>` : ''}
+    <div class="det-acoes">
+      ${p.dia ? '<button class="mini-bt" data-pdet-acao="tirar">Tirar do calendário</button>' : ''}
+      <a class="mini-bt" href="#/estrategia/pautas">Banco de pautas</a>
+      <span></span><button class="mini-bt" data-pdet-acao="fechar">Fechar</button>
+    </div></div></div>`;
+  if (!dlg.open) dlg.showModal();
+}
+
+function salvarPautas(l) {
+  plano.gravarPautas(l).then((ok) => { if (!ok) avisar('Pautas guardadas neste computador; não foi possível salvar na nuvem.'); });
+}
+/** Leva uma pauta para um dia e, se houver, para um encaixe (o que estava nele volta para a lista). */
+function moverPauta(id, dia, pos) {
+  const l = structuredClone(plano.listaPautas());
+  const p = l.find((x) => x.id === id);
+  if (!p) return;
+  if (dia && pos == null && p.formato !== 'pin') {
+    // solta no dia: o primeiro encaixe livre do mesmo formato
+    const livre = plano.encaixesDoDia(dia).find((e) => e.formato === p.formato && !plano.ocupantes(dia, e.pos).pauta && !plano.ocupantes(dia, e.pos).item);
+    pos = livre ? livre.pos : null;
+  }
+  if (dia && pos != null) for (const o of l) if (o.id !== id && o.dia === dia && o.pos === pos) { o.dia = ''; o.pos = null; }
+  p.dia = dia || '';
+  p.pos = dia && pos != null ? pos : null;
+  salvarPautas(l);
+}
+/** A pauta do encaixe acompanha o item: pronta quando ele chega, publicada quando ele é publicado. */
+function sincronizarPauta(it) {
+  if (it.rede !== 'instagram' || !it.dia || it.pos == null) return;
+  const pt = plano.ocupantes(it.dia, it.pos).pauta;
+  if (!pt) return;
+  const novo = it.status === 'publicado' ? 'publicada' : ['pauta', 'producao'].includes(pt.status) ? 'pronta' : pt.status;
+  if (novo === pt.status) return;
+  const l = structuredClone(plano.listaPautas());
+  l.find((x) => x.id === pt.id).status = novo;
+  salvarPautas(l);
+}
+
 async function salvarItem(it) {
+  sincronizarPauta(it);
   desenhar();
   try { await pool.gravar(it); } catch (e) { console.warn(e); avisar('Não foi possível salvar na nuvem.'); }
 }
@@ -374,7 +490,7 @@ async function baixarLote(seg) {
   let txt = pins.length ? pinterest.textosDoLote({ projeto: `semana de ${pool.dataCurta(seg)} a ${pool.dataCurta(fim)}`, nucleo: 'Pool de mídias', pins }) : '';
   if (carrosseis.length) {
     txt += `${txt ? '\r\n\r\n' : ''}Instagram · semana de ${pool.dataCurta(seg)} a ${pool.dataCurta(fim)}\r\n\r\n`
-      + carrosseis.map((it) => `${pool.dataLonga(it.dia)} · ${it.projeto} · ${it.imagens.length} ${it.imagens.length === 1 ? 'imagem' : 'cards'} · ${it.dia}/${slug(it.projeto) || 'carrossel'}/`).join('\r\n');
+      + carrosseis.map((it) => `${pool.dataLonga(it.dia)}${it.pos != null && plano.encaixesDoDia(it.dia)[it.pos] ? ` · ${plano.encaixesDoDia(it.dia)[it.pos].horario}` : ''} · ${it.projeto} · ${it.imagens.length} ${it.imagens.length === 1 ? 'imagem' : 'cards'} · ${it.dia}/${slug(it.projeto) || 'carrossel'}/`).join('\r\n');
   }
   zip.file('textos.txt', txt);
   baixar(await zip.generateAsync({ type: 'blob' }), `lote-${seg}.zip`);
@@ -412,10 +528,27 @@ function ligar() {
       return;
     }
     if (b?.dataset.distribuir !== undefined) { distribuir(b); return; }
+    if (b?.dataset.lado) { ui.lado = b.dataset.lado; desenhar(); return; }
     if (b?.dataset.lote) { baixarLote(b.dataset.lote).catch((err) => { console.warn(err); avisar('Não foi possível baixar o lote.'); }); return; }
     if (b?.dataset.csv !== undefined) { baixarCsv(); return; }
     // detalhe
     const dlg = $('#poolDetalhe', raiz);
+    const pdet = t.closest('[data-pdet-id]');
+    if (pdet) {
+      if (t.closest('a[href]')) { dlg.close(); return; }
+      if (!b) return;
+      const id = pdet.dataset.pdetId;
+      if (b.dataset.pdetAcao === 'fechar') { dlg.close(); return; }
+      if (b.dataset.pdetAcao === 'tirar') { moverPauta(id, '', null); dlg.close(); desenhar(); return; }
+      if (b.dataset.pdetStatus) {
+        const l = structuredClone(plano.listaPautas());
+        l.find((x) => x.id === id).status = b.dataset.pdetStatus;
+        salvarPautas(l);
+        desenhar();
+        abrirPauta(id);
+      }
+      return;
+    }
     const det = t.closest('[data-det-id]');
     if (det) {
       const it = pool.item(det.dataset.detId);
@@ -425,7 +558,7 @@ function ligar() {
       if (b.dataset.detStatus) {
         it.status = b.dataset.detStatus;
         if (it.status === 'publicado') { if (!it.dia) it.dia = pool.hoje(); it.publicadoEm = it.dia; }
-        else { it.publicadoEm = ''; if (it.status === 'pronto') it.dia = ''; if (it.status === 'agendado' && !it.dia) it.dia = pool.hoje(); }
+        else { it.publicadoEm = ''; if (it.status === 'pronto') { it.dia = ''; it.pos = null; } if (it.status === 'agendado' && !it.dia) it.dia = pool.hoje(); }
         await salvarItem(it);
         abrirDetalhe(it.id);
         return;
@@ -454,14 +587,24 @@ function ligar() {
       return;
     }
     if (t.closest('a[href]')) { if (dlg?.open) dlg.close(); return; }
-    // abrir um item
+    // abrir um item ou uma pauta
+    if (arrastando) return;
+    const pt = t.closest('[data-pauta]');
+    if (pt) { abrirPauta(pt.dataset.pauta); return; }
     const it = t.closest('[data-item]');
-    if (it && !arrastando) abrirDetalhe(it.dataset.item);
+    if (it) abrirDetalhe(it.dataset.item);
   });
   raiz.addEventListener('change', async (e) => {
     const t = e.target;
     if (t.matches('[data-filtro-nucleo]')) { ui.nucleo = t.value; desenhar(); return; }
     if (t.matches('[data-dist-inicio]')) { ui.inicio = t.value; return; }
+    if (t.matches('[data-pdet-dia]')) {
+      const id = t.closest('[data-pdet-id]').dataset.pdetId;
+      moverPauta(id, t.value, null);
+      desenhar();
+      abrirPauta(id);
+      return;
+    }
     if (t.matches('[data-det-dia]')) {
       const it = pool.item(t.closest('[data-det-id]').dataset.detId);
       if (!it) return;
@@ -482,9 +625,10 @@ function ligar() {
 
   // arrastar do pool para os dias, de um dia para outro e de volta ao pool
   raiz.addEventListener('dragstart', (e) => {
-    const el = e.target.closest?.('[data-item][draggable]');
+    const el = e.target.closest?.('[data-item][draggable], [data-pauta][draggable]');
     if (!el) return;
-    arrastando = el.dataset.item;
+    arrastando = el.dataset.item ? `item:${el.dataset.item}` : `pauta:${el.dataset.pauta}`;
+    e.stopPropagation();
     e.dataTransfer.setData('text/plain', arrastando);
     e.dataTransfer.effectAllowed = 'move';
     raiz.classList.add('arrastando-item');
@@ -497,23 +641,32 @@ function ligar() {
   };
   document.addEventListener('dragend', fimArraste);
   raiz.addEventListener('dragover', (e) => {
-    const alvo = e.target.closest?.('[data-dia], [data-soltar]');
+    const alvo = e.target.closest?.('.enc, [data-dia], [data-soltar]');
     if (!alvo || !arrastando) return;
     e.preventDefault();
     raiz.querySelectorAll('.alvo').forEach((x) => x !== alvo && x.classList.remove('alvo'));
     alvo.classList.add('alvo');
   });
   raiz.addEventListener('drop', async (e) => {
-    const alvo = e.target.closest?.('[data-dia], [data-soltar]');
-    const id = e.dataTransfer.getData('text/plain') || arrastando;
-    if (!alvo || !id) return;
+    const alvo = e.target.closest?.('.enc, [data-dia], [data-soltar]');
+    const dado = e.dataTransfer.getData('text/plain') || arrastando || '';
+    if (!alvo || !dado) return;
     e.preventDefault();
     fimArraste();
+    const [tipo, id] = dado.split(/:(.+)/);
+    const dia = alvo.dataset.dia || '';
+    const pos = alvo.classList.contains('enc') ? Number(alvo.dataset.pos) : null;
+    if (tipo === 'pauta') { moverPauta(id, dia, pos); desenhar(); return; }
     const it = pool.item(id);
     if (!it) return;
-    const dia = alvo.dataset.dia || '';
     if (it.status === 'publicado' && !dia) { avisar('Publicado não volta ao pool. Mude a situação no detalhe, se precisar.'); return; }
-    pool.definirDia(it, dia);
+    const noEncaixe = it.rede === 'instagram' && pos != null;
+    if (noEncaixe) {
+      // o carrossel que estava no encaixe volta para o pool
+      const antes = plano.ocupantes(dia, pos).item;
+      if (antes && antes.id !== it.id && antes.status !== 'publicado') { pool.definirDia(antes, ''); pool.gravar(antes).catch(() => {}); }
+    }
+    pool.definirDia(it, dia, noEncaixe ? pos : null);
     if (it.status === 'publicado') it.publicadoEm = dia;
     await salvarItem(it);
   });

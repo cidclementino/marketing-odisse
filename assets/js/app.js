@@ -9,6 +9,7 @@ import {
 import * as pinterest from './pinterest.js';
 import * as pool from './pool.js';
 import { renderCalendario } from './pagina-calendario.js';
+import { renderEstrategia } from './pagina-estrategia.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import * as local from './store.js';
@@ -1252,7 +1253,7 @@ async function enviarAoPool() {
 // Navegação
 
 function mostrar(vista) {
-  for (const v of ['login', 'inicio', 'editor', 'padroes', 'metricas', 'calendario']) document.body.classList.toggle('vista-' + v, vista === v);
+  for (const v of ['login', 'inicio', 'editor', 'padroes', 'metricas', 'calendario', 'estrategia']) document.body.classList.toggle('vista-' + v, vista === v);
 }
 
 async function sairDoEditor() {
@@ -1271,8 +1272,10 @@ async function rotear() {
   if (location.hash === '#_=_') { history.replaceState(null, '', location.pathname + '#/metricas'); }
   const metr = location.hash.startsWith('#/metricas');
   const cal = location.hash.startsWith('#/calendario');
-  $('#menuPub').classList.toggle('ativo', !metr && !cal);
+  const estr = location.hash.startsWith('#/estrategia');
+  $('#menuPub').classList.toggle('ativo', !metr && !cal && !estr);
   $('#menuCal').classList.toggle('ativo', cal);
+  $('#menuEst').classList.toggle('ativo', estr);
   if (!pastasLidas) {
     pastasLidas = true;
     pinterest.carregarPastas().then((mudou) => {
@@ -1287,6 +1290,13 @@ async function rotear() {
     document.title = 'Métricas · Universo';
     mostrar('metricas');
     await renderMetricas($('#metricas'));
+    return;
+  }
+  if (estr) {
+    if (pub) await sairDoEditor();
+    document.title = 'Estratégia · Universo';
+    mostrar('estrategia');
+    await renderEstrategia($('#estrategia'), location.hash.split('/')[2] || '', { aviso });
     return;
   }
   if (cal) {

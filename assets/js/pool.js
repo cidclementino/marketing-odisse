@@ -52,9 +52,10 @@ export async function apagar(id) {
   await nuvem.poolApagar(id);
 }
 
-/** Muda o dia: com dia, agendado; sem dia, de volta ao pool. Publicado continua publicado. */
-export function definirDia(it, dia) {
+/** Muda o dia (e o encaixe da grade, `pos`): com dia, agendado; sem dia, de volta ao pool. Publicado continua publicado. */
+export function definirDia(it, dia, pos = null) {
   it.dia = dia || '';
+  it.pos = dia && pos != null ? pos : null;
   if (it.status !== 'publicado') it.status = dia ? 'agendado' : 'pronto';
   return it;
 }

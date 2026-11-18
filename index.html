@@ -9,7 +9,7 @@
   <script type="importmap">
   {
     "imports": {
-      "./assets/js/app.js": "./assets/js/app.js?v=f39a25d0aa",
+      "./assets/js/app.js": "./assets/js/app.js?v=29d333ba70",
       "./assets/js/imaging.js": "./assets/js/imaging.js?v=0055923bbd",
       "./assets/js/marca.js": "./assets/js/marca.js?v=b107903fe5",
       "./assets/js/marks.js": "./assets/js/marks.js?v=9eb5609f68",
@@ -20,11 +20,13 @@
       "./assets/js/nucleos.js": "./assets/js/nucleos.js?v=dde87f2eb3",
       "./assets/js/nuvem.js": "./assets/js/nuvem.js?v=60c7e8c715",
       "./assets/js/padroes.js": "./assets/js/padroes.js?v=b0b7f6886a",
-      "./assets/js/pagina-calendario.js": "./assets/js/pagina-calendario.js?v=173d38fdae",
+      "./assets/js/pagina-calendario.js": "./assets/js/pagina-calendario.js?v=27acd741f2",
+      "./assets/js/pagina-estrategia.js": "./assets/js/pagina-estrategia.js?v=32456b8191",
       "./assets/js/pagina-metricas.js": "./assets/js/pagina-metricas.js?v=e3cdd5a3de",
       "./assets/js/pagina-padroes.js": "./assets/js/pagina-padroes.js?v=6ef5f16288",
       "./assets/js/pinterest.js": "./assets/js/pinterest.js?v=24eb256430",
-      "./assets/js/pool.js": "./assets/js/pool.js?v=b80c995f0c",
+      "./assets/js/plano.js": "./assets/js/plano.js?v=e393f91e3e",
+      "./assets/js/pool.js": "./assets/js/pool.js?v=fa632acf0d",
       "./assets/js/store.js": "./assets/js/store.js?v=a4c6d728d8",
       "./assets/js/templates.js": "./assets/js/templates.js?v=face0537a8"
     }
@@ -32,7 +34,7 @@
   </script>
   <!-- /VERSOES -->
   <link rel="stylesheet" href="assets/css/card.css?v=03e46c1ae1">
-  <link rel="stylesheet" href="assets/css/app.css?v=9a49c695e2">
+  <link rel="stylesheet" href="assets/css/app.css?v=feab84c8e0">
 </head>
 <body class="vista-login">
   <!-- Menu geral: no futuro, outras páginas entram aqui -->
@@ -46,7 +48,7 @@
       <a class="ativo" href="#/publicacoes" id="menuPub">Publicações</a>
       <a href="#/calendario" id="menuCal">Calendário</a>
       <span class="em-breve" title="Em breve">Biblioteca</span>
-      <span class="em-breve" title="Em breve">Estratégia</span>
+      <a href="#/estrategia" id="menuEst">Estratégia</a>
       <a href="#/metricas" id="menuMetricas">Métricas</a>
     </nav>
     <div class="topo-acoes">
@@ -101,6 +103,9 @@
 
   <!-- ===================== CALENDÁRIO (pool de mídias) ===================== -->
   <main class="calendario" id="calendario"></main>
+
+  <!-- ===================== ESTRATÉGIA (plano de publicação) ===================== -->
+  <main class="estrategia" id="estrategia"></main>
 
   <!-- ===================== MÉTRICAS ===================== -->
   <main class="metricas" id="metricas"></main>
@@ -191,6 +196,6 @@
 
   <script src="vendor/html-to-image.js?v=ad74ac1e13"></script>
   <script src="vendor/jszip.min.js?v=978d62b574"></script>
-  <script type="module" src="assets/js/app.js?v=f39a25d0aa"></script>
+  <script type="module" src="assets/js/app.js?v=29d333ba70"></script>
 </body>
 </html>

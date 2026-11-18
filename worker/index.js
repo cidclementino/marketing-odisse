@@ -5,7 +5,8 @@
 //       pub:<id>     -> publicação completa (JSON)
 //       resumo:<id>  -> resumo para o arquivo (JSON, inclui miniatura da capa)
 //       img:<ref>    -> imagem original (binário; content-type nos metadados)
-//       cfg:<chave>  -> configurações comuns (pin-pastas: pastas do Pinterest)
+//       cfg:<chave>  -> configurações comuns (pin-pastas: pastas do Pinterest; estrategia: grade, fases e
+//                       ciclo do plano de publicação; pautas: banco de pautas)
 //       pool:<id>    -> item do pool de mídias (JSON; as imagens exportadas ficam em img:<ref>)
 //   - Secret `UNIVERSO_SENHA` -> senha compartilhada pela equipe (Authorization: Bearer <senha>)
 //
@@ -20,7 +21,7 @@
 //   GET    /api/pool                 -> pool de mídias (itens prontos, agendados e publicados)
 //   PUT    /api/pool/:id             -> grava o item (e apaga as mídias que ele deixou de usar)
 //   DELETE /api/pool/:id             -> apaga o item e as mídias dele
-//   GET    /api/config/:chave        -> configuração comum (ex.: pin-pastas); null se não existe
+//   GET    /api/config/:chave        -> configuração comum (pin-pastas, estrategia, pautas); null se não existe
 //   PUT    /api/config/:chave        -> grava a configuração (JSON, até 64 KB)
 //
 //   Instagram (ver instagram.js):
@@ -54,7 +55,8 @@ const CORS = {
 };
 const MAX_IMG = 20 * 1024 * 1024;
 const ID = /^[a-z0-9_-]{4,64}$/i;
-const CONFIGS = new Set(['pin-pastas']);
+// configurações comuns e o tamanho máximo de cada uma
+const CONFIGS = new Map([['pin-pastas', 64 * 1024], ['estrategia', 128 * 1024], ['pautas', 1024 * 1024]]);
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
@@ -155,7 +157,7 @@ export default {
         let corpo;
         try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
         const txt = JSON.stringify(corpo);
-        if (txt.length > 64 * 1024) return erro('configuração grande demais', 413);
+        if (txt.length > CONFIGS.get(id)) return erro('configuração grande demais', 413);
         await kv.put(`cfg:${id}`, txt);
         return json({ ok: true });
       }

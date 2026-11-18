@@ -43,6 +43,16 @@ Segue `odisse-estrategia-pinterest.pdf` (nov. 2026). Cada publicação de pins �
 - **Plataformas:** substitui a planilha `odisse-plataformas-de-publicacao.xlsx` — uma linha por projeto e plataforma (só no editor, no pool, agendados, publicados, pastas, último lote, próximo), com download em .csv.
 - Código: `assets/js/pool.js` (dados, repetição, distribuição) e `assets/js/pagina-calendario.js`. API: `GET/PUT/DELETE /api/pool[/:id]` (KV `pool:<id>`).
 
+## Estratégia: o plano de publicação (`#/estrategia`)
+
+Fonte: `odisse-estrategia-instagram.pdf` (seções 02, 03, 05, 06 e 07). Guardado na nuvem em `cfg:estrategia` e `cfg:pautas`.
+
+- **Grade:** a grade semanal de cada fase da escalada (1 a 5; a fase 5 alterna semanas A e B), com os encaixes de cada dia na ordem de publicação: núcleo, post ou reel (E1–E10) e o formato. O horário vem da posição no dia (11h–13h, 15h–17h, 20h–22h). Avisa quando um núcleo se repete em publicações seguidas ou Estúdio encosta em Objetos. Editável; "Restaurar a grade do documento" volta ao original. A **fase atual** vale a partir da segunda-feira em que foi trocada (`fases`), e o **início do ciclo** define as semanas 1–4 (A = 1 e 3, B = 2 e 4).
+- **Pautas:** o banco de ângulos por obra (projeto de arquitetura, objeto, ensaio da Elaia, rotina do estúdio), com os ângulos sugeridos do documento, formato (post, reel com modelo, pin), situação (pauta, em produção, pronta, publicada), dia e notas.
+- **Ciclo:** os prazos desta semana (pautas do ciclo 3 semanas antes, captação 2–3, textos 2, design 1, revisão e agendamento até a sexta anterior, métricas na última semana), a escalada (reserva de uma semana de posts prontos fora da agenda + 4 semanas cumpridas) e as próximas 8 semanas com encaixes, lacunas, pautadas, prontas e publicadas.
+- **No Calendário:** cada dia mostra os encaixes da grade (Instagram), com lacunas, pautas e carrosséis; a coluna da semana mostra a semana do ciclo, a fase e os prazos que vencem nela. O painel lateral tem as abas Pool e Pautas: arraste para um encaixe. A pauta acompanha o carrossel do encaixe (pronta quando ele chega, publicada quando é publicado).
+- Código: `assets/js/plano.js` e `assets/js/pagina-estrategia.js`.
+
 ## Métricas (`#/metricas`)
 
 Hub de desempenho do marketing do Odisse. **Fase 1: Instagram** (conta única @odisse, profissional).
@@ -100,6 +110,8 @@ assets/js/app.js         início (subpáginas por formato), arquivo, edição, c
 assets/js/pinterest.js   pins: pastas, campos do Pinterest, link com UTMs e textos.txt
 assets/js/pool.js        pool de mídias: itens, repetição, distribuição no calendário
 assets/js/pagina-calendario.js  Calendário, Pool de mídias e Plataformas
+assets/js/plano.js       plano de publicação: grade por fase, ciclo, prazos, pautas, escalada
+assets/js/pagina-estrategia.js  Estratégia: Grade, Pautas e Ciclo
 assets/js/store.js       armazenamento local (IndexedDB)
 assets/js/nuvem.js       cliente da API
 assets/js/pagina-metricas.js  página de métricas: navegação, filtros e eventos
