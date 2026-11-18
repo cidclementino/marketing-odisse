@@ -96,6 +96,10 @@ export async function igMiniatura(mediaId) {
   return (await req(`/api/instagram/miniaturas/${mediaId}`)).blob();
 }
 
+// ---- Configurações comuns (ex.: pastas do Pinterest) ------------------------
+export const lerConfig = (chave) => reqIG(`/api/config/${encodeURIComponent(chave)}`);
+export const gravarConfig = (chave, valor) => reqIG(`/api/config/${encodeURIComponent(chave)}`, 'PUT', valor);
+
 // ---- Métricas: etiquetas e concorrentes ------------------------------------
 export const etiquetar = (chave, dados) => reqIG(`/api/metricas/etiquetas/${encodeURIComponent(chave)}`, 'PUT', dados);
 export const concAdicionar = (usuario) => reqIG('/api/concorrentes', 'POST', { usuario });

@@ -31,6 +31,8 @@
   font-feature-settings: 'ss01' 0, 'cv11' 1;
 }
 .card * { box-sizing: border-box; }
+/* Pin 2:3 — desenhado em 1080 × 1620 e exportado em 1000 × 1500 */
+.card.pin { height: 1620px; }
 
 .card .bloco,
 .card .slot,

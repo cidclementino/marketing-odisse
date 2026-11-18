@@ -611,6 +611,7 @@ async function vincularAutomatico(kv, posts, agora) {
       const id = k.name.slice(7);
       if (usadas.has(id)) continue;
       const r = await kv.get(k.name, 'json');
+      if (r?.formato === 'pin') continue; // pins do Pinterest não são posts do Instagram
       let dia = r?.dataPublicacao;
       if (dia === undefined) dia = (await kv.get(`pub:${id}`, 'json'))?.globais?.dataPublicacao;
       if (dia) (porDia[dia] = porDia[dia] || []).push(id);

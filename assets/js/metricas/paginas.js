@@ -153,7 +153,7 @@ const COLS = [
 
 function opcoesPub(p, resumos) {
   const atual = p.vinc?.pub || '';
-  const lista = [...resumos].sort((a, b) => (b.dataPublicacao || b.criado || '').localeCompare(a.dataPublicacao || a.criado || ''));
+  const lista = resumos.filter((r) => (r.formato || '3x4') !== 'pin').sort((a, b) => (b.dataPublicacao || b.criado || '').localeCompare(a.dataPublicacao || a.criado || ''));
   const rot = (r) => `${r.dataPublicacao ? dataCurta(r.dataPublicacao) + ' · ' : ''}${NUCLEOS[r.nucleo]?.nome || ''} · ${r.titulo || 'sem título'}`;
   return `<option value="">${p.vinc && !p.vinc.pub ? 'Sem publicação' : '— ligar —'}</option>
     ${p.vinc && !p.vinc.pub ? '' : '<option value="-">Sem publicação</option>'}

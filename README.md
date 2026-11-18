@@ -16,6 +16,23 @@ A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 p
    - **Cards:** setas, duplicar e excluir ficam sobre o card em destaque; **+** adiciona. Visualização **3** ou **Todos** no canto superior direito.
 5. **Exportar** (canto inferior direito): JPG otimizado em 1080 × 1440 com o nome do manual (`AAMMDD-NNN-nn-assunto.jpg`), um card ou o carrossel em `.zip`. Exportar também salva a publicação.
 
+## Publicações (`#/publicacoes/<formato>`)
+
+O menu geral tem uma entrada só, **Publicações**, com uma subpágina por formato de arquivo: **Posts 3:4** (`#/publicacoes/posts`) e **Pins 2:3** (`#/publicacoes/pins`); Stories 9:16 em breve. O editor é o mesmo para todos os formatos — mudam o canvas, o repertório de modelos e os campos do canal. Publicações antigas são posts 3:4 (`formato` ausente = `3x4`).
+
+### Pins 2:3 (Pinterest)
+
+Segue `odisse-estrategia-pinterest.pdf` (nov. 2026). Cada publicação de pins é **um projeto** (peça ou texto), com 8 a 15 pins.
+
+- **Canvas:** desenhado em 1080 × 1620 e exportado em **PNG 1000 × 1500** (a margem de 52 vira 48, a mesma proporção). Sem carimbo e sem pontos; selo do núcleo centrado no rodapé, menor que no Instagram.
+- **Modelo universal P-01** com a opção *Composição*: **Imagem plena** (padrão de Arquitetos e Estúdio; no Estúdio, duotone pelo tratamento do núcleo), **Foto sobre painel** (padrão de Objetos) e **Título + imagem** (padrão do Elaia: título e linha de contexto ligados). Recorte pela mesma dinâmica do 3:4 (arrastar, zoom, posição). O painel de imagens avisa quando a imagem será ampliada na exportação.
+- **Campos do Pinterest** (por pin, no painel esquerdo): idioma, título (até 100, sem ponto final), descrição (até 500 contando os créditos), texto alternativo, pasta, link de destino, tipo (imagem ou capa de vídeo). Avisos não impedem a exportação. **+ Versão em inglês** duplica o pin ligado ao original (`pin.par`).
+- **Dados da publicação:** projeto, data dos arquivos, link de destino padrão e créditos (PT e EN), que fecham a descrição de cada pin.
+- **Link com UTMs:** `utm_source=pinterest`, `utm_medium=social`, `utm_campaign=<sigla>-<projeto>`, `utm_content=<AAMMDD-NNN-sigla>[-en]`, `utm_term=<pasta>`.
+- **Pastas:** editáveis na subpágina Pins (nome, o que entra, ordem do perfil), guardadas na nuvem em `cfg:pin-pastas` (`/api/config/pin-pastas`).
+- **Exportação:** `AAMMDD-NNN-nn-assunto-pin.png` (inglês: `…-en-pin.png`); o lote sai em `.zip` com o **textos.txt** (título, descrição, pasta, link, alt, idioma, tipo e avisos de cada pin).
+- Código em `assets/js/pinterest.js` (pastas, campos, UTMs, textos.txt) e o modelo em `templates.js` (`P01`, `ALT_PIN`).
+
 ## Métricas (`#/metricas`)
 
 Hub de desempenho do marketing do Odisse. **Fase 1: Instagram** (conta única @odisse, profissional).
@@ -69,7 +86,8 @@ assets/js/pagina-padroes.js  página de visualização e conferência dos padrõ
 assets/js/templates.js   os modelos de card de cada núcleo (post-3x4-templates)
 assets/js/marks.js       selos (roda, sol, flor, mão) e logotipos em vetor
 assets/js/imaging.js     leitura de imagem e duotone com grão
-assets/js/app.js         início, arquivo, edição, carrossel e exportação
+assets/js/app.js         início (subpáginas por formato), arquivo, edição, carrossel e exportação
+assets/js/pinterest.js   pins: pastas, campos do Pinterest, link com UTMs e textos.txt
 assets/js/store.js       armazenamento local (IndexedDB)
 assets/js/nuvem.js       cliente da API
 assets/js/pagina-metricas.js  página de métricas: navegação, filtros e eventos

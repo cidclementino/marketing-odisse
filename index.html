@@ -3,33 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Universo · Posts 3:4</title>
+  <title>Universo · Publicações</title>
   <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
   <!-- VERSOES (gerado por tools/versionar.py — não editar à mão) -->
   <script type="importmap">
   {
     "imports": {
-      "./assets/js/app.js": "./assets/js/app.js?v=21488cb84f",
+      "./assets/js/app.js": "./assets/js/app.js?v=aa26b6b94d",
       "./assets/js/imaging.js": "./assets/js/imaging.js?v=0055923bbd",
       "./assets/js/marca.js": "./assets/js/marca.js?v=b107903fe5",
       "./assets/js/marks.js": "./assets/js/marks.js?v=9eb5609f68",
       "./assets/js/metricas/graficos.js": "./assets/js/metricas/graficos.js?v=afa4f6157a",
       "./assets/js/metricas/leituras.js": "./assets/js/metricas/leituras.js?v=3f3f18ecbe",
       "./assets/js/metricas/modelo.js": "./assets/js/metricas/modelo.js?v=1708260e9e",
-      "./assets/js/metricas/paginas.js": "./assets/js/metricas/paginas.js?v=c09c0771e9",
+      "./assets/js/metricas/paginas.js": "./assets/js/metricas/paginas.js?v=53de141b7c",
       "./assets/js/nucleos.js": "./assets/js/nucleos.js?v=dde87f2eb3",
-      "./assets/js/nuvem.js": "./assets/js/nuvem.js?v=fe0ef79d94",
-      "./assets/js/padroes.js": "./assets/js/padroes.js?v=3b34026afa",
+      "./assets/js/nuvem.js": "./assets/js/nuvem.js?v=0a7c7b2f90",
+      "./assets/js/padroes.js": "./assets/js/padroes.js?v=b0b7f6886a",
       "./assets/js/pagina-metricas.js": "./assets/js/pagina-metricas.js?v=e3cdd5a3de",
       "./assets/js/pagina-padroes.js": "./assets/js/pagina-padroes.js?v=6ef5f16288",
-      "./assets/js/store.js": "./assets/js/store.js?v=2f08dbc689",
-      "./assets/js/templates.js": "./assets/js/templates.js?v=8711fa1f6c"
+      "./assets/js/pinterest.js": "./assets/js/pinterest.js?v=49140e9e32",
+      "./assets/js/store.js": "./assets/js/store.js?v=a4c6d728d8",
+      "./assets/js/templates.js": "./assets/js/templates.js?v=face0537a8"
     }
   }
   </script>
   <!-- /VERSOES -->
-  <link rel="stylesheet" href="assets/css/card.css?v=22dc592f0a">
-  <link rel="stylesheet" href="assets/css/app.css?v=2007f857f9">
+  <link rel="stylesheet" href="assets/css/card.css?v=03e46c1ae1">
+  <link rel="stylesheet" href="assets/css/app.css?v=7a1b256e0c">
 </head>
 <body class="vista-login">
   <!-- Menu geral: no futuro, outras páginas entram aqui -->
@@ -40,8 +41,7 @@
       <span class="marca-sub">Odisse</span>
     </a>
     <nav class="menu" aria-label="Menu geral">
-      <a class="ativo" href="#/" id="menuPosts">Posts 3:4</a>
-      <span class="em-breve" title="Em breve">Stories 9:16</span>
+      <a class="ativo" href="#/publicacoes" id="menuPub">Publicações</a>
       <span class="em-breve" title="Em breve">Calendário</span>
       <span class="em-breve" title="Em breve">Biblioteca</span>
       <span class="em-breve" title="Em breve">Estratégia</span>
@@ -66,9 +66,11 @@
 
   <!-- ===================== INÍCIO: criar + arquivo ===================== -->
   <main class="inicio" id="inicio">
+    <!-- Subpáginas de Publicações: uma por formato de arquivo -->
+    <nav class="met-nav pub-nav" id="pubNav" aria-label="Formatos de publicação"></nav>
     <section class="criar">
       <div class="sec-cab linha">
-        <h1>Nova publicação <span class="info" tabindex="0" data-info="Escolha o núcleo. O carrossel já começa com o repertório de modelos dele.">i</span></h1>
+        <h1><span id="criarTit">Nova publicação</span> <span class="info" tabindex="0" id="criarInfo" data-info="Escolha o núcleo. O carrossel já começa com o repertório de modelos dele.">i</span></h1>
         <a class="bt-padroes" href="#/padroes">Padrões de texto e espaçamento</a>
       </div>
       <div class="nucleo-tiles" id="tiles"></div>
@@ -87,6 +89,9 @@
       </div>
       <div class="lista-pubs" id="listaPubs"></div>
     </section>
+
+    <!-- Só nos pins: pastas do perfil do Pinterest (comuns a todos os computadores) -->
+    <section class="pastas" id="pastasSec" hidden></section>
   </main>
 
   <!-- ===================== PADRÕES ===================== -->
@@ -97,7 +102,7 @@
 
   <!-- ===================== EDITOR ===================== -->
   <div class="pub-barra" id="pubBarra">
-    <a class="voltar" href="#/">← Publicações</a>
+    <a class="voltar" id="btVoltar" href="#/publicacoes">← Publicações</a>
     <div class="pub-id">
       <span class="chip" id="pubChip"></span>
       <span class="pub-nucleo" id="pubNucleo"></span>
@@ -117,12 +122,13 @@
           <div class="macro-corpo" id="globaisPub"></div>
         </details>
         <details class="macro" data-macro="card" open>
-          <summary><h2>Dados do card <span class="card-tag" id="cardTag"></span></h2></summary>
+          <summary><h2><span id="cardRot">Dados do card</span> <span class="card-tag" id="cardTag"></span></h2></summary>
           <div class="macro-corpo">
             <div class="secao opcoes" id="opcoes" hidden></div>
             <div class="secao textos" id="textos" hidden></div>
             <div class="secao ficha-painel" id="ficha" hidden></div>
             <div class="secao imagens" id="imagens"></div>
+            <div class="secao pinterest" id="pinterest" hidden></div>
           </div>
         </details>
       </div>
@@ -179,6 +185,6 @@
 
   <script src="vendor/html-to-image.js?v=ad74ac1e13"></script>
   <script src="vendor/jszip.min.js?v=978d62b574"></script>
-  <script type="module" src="assets/js/app.js?v=21488cb84f"></script>
+  <script type="module" src="assets/js/app.js?v=aa26b6b94d"></script>
 </body>
 </html>

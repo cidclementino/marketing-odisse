@@ -84,7 +84,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .campo { display: block; margin-bottom: 10px; }
 .campo > span { display: block; font-size: 12px; font-weight: 550; margin-bottom: 4px; }
 .campo > small { display: block; font-size: 11px; color: var(--ardosia-2); margin-top: 3px; }
-.campo input[type=text], .campo input[type=date], .campo input[type=password], .campo textarea {
+.campo input[type=text], .campo input[type=date], .campo input[type=password], .campo input[type=url], .campo textarea, .campo select {
   width: 100%; padding: 8px 10px; font-size: 13px;
   border: 1px solid var(--linha-2); border-radius: 6px; background: #fff;
 }
@@ -152,7 +152,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .trilho.rolavel { justify-content: flex-start; }
 .peca { position: relative; flex: 0 0 auto; }
 .peca .moldura {
-  width: calc(1080px * var(--k)); height: calc(1440px * var(--k));
+  width: calc(1080px * var(--k)); height: calc(var(--alt, 1440px) * var(--k));
   overflow: hidden; position: relative;
   box-shadow: 0 1px 2px rgba(63,75,87,.12), 0 8px 28px rgba(63,75,87,.12);
   transition: box-shadow .15s;
@@ -241,7 +241,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .dica { font-size: 11px; color: var(--ardosia-2); margin: 8px 0 0; line-height: 1.4; }
 
 /* ---- Diversos --------------------------------------------------------- */
-#exportador { position: fixed; left: -20000px; top: 0; width: 1080px; height: 1440px; pointer-events: none; }
+#exportador { position: fixed; left: -20000px; top: 0; width: 1080px; height: auto; pointer-events: none; }
 .aviso {
   position: fixed; left: 50%; bottom: 64px; transform: translate(-50%, 20px);
   background: var(--ardosia); color: var(--papel); font-size: 13px; padding: 10px 16px; border-radius: 8px;
@@ -809,3 +809,58 @@ body:not(.vista-metricas) .metricas { display: none; }
 .ficha-num { font-size: 11px; font-weight: 600; color: var(--ardosia-2); font-variant-numeric: tabular-nums; }
 .ficha-aviso { grid-column: 2 / -1; font-size: 11px; color: #A4502A; margin-top: -2px; }
 .ficha-item.suprimida input { border-style: dashed; color: var(--ardosia-2); }
+
+
+/* ---- Publicações: subpáginas por formato ----------------------------------- */
+.pub-nav { margin: -14px auto 30px; }
+.pub-nav .em-breve { padding: 10px 14px 9px; font-size: 13px; font-weight: 550; color: var(--ardosia-2); opacity: .5; cursor: default; white-space: nowrap; }
+
+/* ---- Pins 2:3 ---------------------------------------------------------------- */
+#modelos.pins .mini { aspect-ratio: 2 / 3; }
+.lista-pubs.pins .pub-capa { aspect-ratio: 2 / 3; }
+.img-aviso { display: block; font-size: 11px; color: #A4502A; margin-top: 2px; line-height: 1.3; }
+
+/* Pastas do Pinterest (subpágina Pins) */
+.pastas { margin-top: 48px !important; padding-top: 32px; border-top: 1px solid var(--linha); }
+.pastas-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; align-items: start; }
+.pastas-grupo { background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio); padding: 14px 14px 10px; }
+.pastas-grupo h3 { margin: 0 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ardosia-2); display: flex; align-items: center; gap: 6px; }
+.pastas-grupo h3 small { font-size: 10.5px; font-weight: 600; background: var(--nevoa); border-radius: 99px; padding: 1px 7px; letter-spacing: 0; }
+.pastas-grupo .vazio { font-size: 12px; color: var(--ardosia-2); margin: 0 0 8px; }
+.pasta-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 6px; padding: 8px 0; border-top: 1px dashed var(--linha); }
+.pasta-item:first-of-type { border-top: 0; padding-top: 0; }
+.pasta-item input { min-width: 0; border: 1px solid transparent; background: none; border-radius: 5px; padding: 4px 6px; margin-left: -6px; }
+.pasta-item input:hover { border-color: var(--linha-2); }
+.pasta-item input:focus { outline: none; border-color: var(--azul); background: #fff; }
+.pasta-nome { font-size: 13px; font-weight: 600; }
+.pasta-desc { grid-column: 1 / -1; font-size: 12px; color: var(--ardosia-2); }
+.pasta-acoes { display: flex; gap: 3px; opacity: .35; transition: opacity .12s; }
+.pasta-item:hover .pasta-acoes, .pasta-item:focus-within .pasta-acoes { opacity: 1; }
+.pasta-acoes button { border: 1px solid var(--linha-2); background: #fff; border-radius: 4px; font-size: 11.5px; padding: 2px 7px; }
+.pasta-acoes button:disabled { opacity: .35; cursor: default; }
+.pasta-acoes button.perigo:hover { color: var(--perigo); border-color: var(--perigo); }
+.pasta-mais { border: 1px dashed var(--linha-2); background: none; border-radius: 6px; font-size: 12px; padding: 5px 10px; margin-top: 6px; color: var(--ardosia-2); }
+.pasta-mais:hover { border-style: solid; color: var(--ardosia); border-color: var(--ardosia-2); }
+
+/* Painel do Pinterest (editor de pins) */
+.pinterest .opcao { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; font-size: 12px; }
+.pinterest .opcao > span { font-weight: 550; }
+.pinterest .opcao .seg { align-self: flex-start; }
+.pinterest .opcao .seg button { padding: 5px 10px; font-size: 12px; }
+.pin-campo { margin-bottom: 12px; }
+.pin-campo > span { display: flex !important; align-items: center; }
+.pin-campo .conta { margin-left: auto; font-size: 10.5px; font-weight: 550; color: var(--ardosia-2); font-variant-numeric: tabular-nums; }
+.pin-campo .conta.passou { color: var(--perigo); font-weight: 700; }
+.pin-campo textarea { min-height: 0; }
+.pin-campo ::placeholder, .campo ::placeholder { color: var(--ardosia-2); opacity: .55; }
+.pin-cred { display: block; font-size: 11px; color: var(--ardosia-2); margin-top: 3px; }
+.pin-avisos { list-style: none; margin: 4px 0 0; padding: 0; }
+.pin-avisos:empty { display: none; }
+.pin-avisos li { font-size: 11px; line-height: 1.35; color: #A4502A; padding-left: 12px; position: relative; }
+.pin-avisos li::before { content: '!'; position: absolute; left: 2px; font-weight: 700; }
+.pin-final { margin: -2px 0 14px; padding: 8px 10px; background: var(--nevoa); border-radius: 6px; }
+.pin-final > span { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--ardosia-2); margin-bottom: 4px; }
+.pin-final code { display: block; font: 10.5px/1.4 ui-monospace, Consolas, monospace; word-break: break-all; color: var(--ardosia); }
+.mini-bt { border: 1px solid var(--linha-2); background: var(--papel); border-radius: 5px; font-size: 11.5px; padding: 4px 9px; }
+.mini-bt:hover { border-color: var(--ardosia-2); }
+.pin-par { margin: 4px 0 8px; }

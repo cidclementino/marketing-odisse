@@ -5,6 +5,7 @@
 //       pub:<id>     -> publicação completa (JSON)
 //       resumo:<id>  -> resumo para o arquivo (JSON, inclui miniatura da capa)
 //       img:<ref>    -> imagem original (binário; content-type nos metadados)
+//       cfg:<chave>  -> configurações comuns (pin-pastas: pastas do Pinterest)
 //   - Secret `UNIVERSO_SENHA` -> senha compartilhada pela equipe (Authorization: Bearer <senha>)
 //
 // Rotas (todas exigem a senha):
@@ -15,6 +16,8 @@
 //   HEAD   /api/imagens/:ref         -> 200 se existe
 //   GET    /api/imagens/:ref         -> imagem
 //   PUT    /api/imagens/:ref         -> grava imagem (corpo binário)
+//   GET    /api/config/:chave        -> configuração comum (ex.: pin-pastas); null se não existe
+//   PUT    /api/config/:chave        -> grava a configuração (JSON, até 64 KB)
 //
 //   Instagram (ver instagram.js):
 //   GET    /api/instagram/estado            -> conexão, perfil, última coleta
@@ -47,6 +50,7 @@ const CORS = {
 };
 const MAX_IMG = 20 * 1024 * 1024;
 const ID = /^[a-z0-9_-]{4,64}$/i;
+const CONFIGS = new Set(['pin-pastas']);
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
@@ -85,6 +89,7 @@ function resumo(pub) {
   return {
     id: pub.id,
     nucleo: pub.nucleo,
+    formato: pub.formato || '3x4',
     titulo: pub.titulo || pub.globais?.projeto || '',
     ncards: pub.cards?.length || 0,
     criado: pub.criado,
@@ -115,6 +120,20 @@ export default {
     }
     const [, recurso, id] = partes;
     if (id && !ID.test(id)) return erro('id inválido', 400);
+
+    // configurações comuns a todos os computadores (ex.: pastas do Pinterest)
+    if (recurso === 'config' && id) {
+      if (!CONFIGS.has(id)) return erro('configuração desconhecida', 404);
+      if (request.method === 'GET') return json(await kv.get(`cfg:${id}`, 'json'));
+      if (request.method === 'PUT') {
+        let corpo;
+        try { corpo = await request.json(); } catch { return erro('JSON inválido', 400); }
+        const txt = JSON.stringify(corpo);
+        if (txt.length > 64 * 1024) return erro('configuração grande demais', 413);
+        await kv.put(`cfg:${id}`, txt);
+        return json({ ok: true });
+      }
+    }
 
     if (recurso === 'publicacoes') {
       if (!id && request.method === 'GET') {

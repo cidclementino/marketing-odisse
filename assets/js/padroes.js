@@ -3,10 +3,15 @@
 // Medidas em px sobre a largura de 1080, comum a todos os formatos; o que é vertical
 // é medido a partir do topo ou da base do card, nunca de uma altura fixa.
 
+// `larg`/`alt`: tamanho do arquivo exportado. `canvas`: tamanho em que o card é desenhado — sempre 1080 de
+// largura, para valerem os mesmos padrões; o pin (1000 × 1500) é desenhado em 1080 × 1620 e reduzido na
+// exportação (a margem de 52 vira 48, a mesma proporção).
 export const FORMATOS = [
-  { id: '3x4', nome: 'Post 3:4', larg: 1080, alt: 1440, ativo: true },
-  { id: '9x16', nome: 'Stories 9:16', larg: 1080, alt: 1920, ativo: false },
+  { id: '3x4', nome: 'Post 3:4', larg: 1080, alt: 1440, canvas: [1080, 1440], ativo: true },
+  { id: 'pin', nome: 'Pin 2:3', larg: 1000, alt: 1500, canvas: [1080, 1620], ativo: true },
+  { id: '9x16', nome: 'Stories 9:16', larg: 1080, alt: 1920, canvas: [1080, 1920], ativo: false },
 ];
+export const FORMATO_POR_ID = Object.fromEntries(FORMATOS.map((f) => [f.id, f]));
 
 /**
  * Estilos de texto: Título 01–03, Corpo 01–03 e Rótulo. Os ids e classes (t-capa, t-titulo…) são os

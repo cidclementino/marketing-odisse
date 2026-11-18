@@ -1,15 +1,17 @@
-// Universo — posts 3:4 do Odisse.
-// Duas vistas: início (criar + arquivo) e editor de uma publicação.
+// Universo — publicações do Odisse: posts 3:4 (Instagram) e pins 2:3 (Pinterest).
+// Duas vistas: início (subpágina do formato: criar + arquivo) e editor de uma publicação.
+// O editor é o mesmo para todos os formatos; muda o canvas, o repertório de modelos e os campos do canal.
 
 import { NUCLEOS, ORDEM_NUCLEOS, padroesDoNucleo, COR, tintaSobre } from './nucleos.js';
 import {
-  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, estruturaDe, LARG, ALT,
+  modelosDo, modeloDe, codigoDe, slotsDe, migrarCard, opcoesDe, opcoesDoModelo, SEQUENCIAS, SEQUENCIA_PIN, GRUPOS, grupoDe, renderCard, exemploDe, ajustarLayout, ajustar, crescer, refluir, textosDe, estruturaDe, LARG,
 } from './templates.js';
+import * as pinterest from './pinterest.js';
 import { mark } from './marks.js';
 import { lerArquivo, tratar } from './imaging.js';
 import * as local from './store.js';
 import * as nuvem from './nuvem.js';
-import { instalarPadroes, MACROS, TEXTO_POR_CLASSE } from './padroes.js';
+import { instalarPadroes, MACROS, TEXTO_POR_CLASSE, FORMATO_POR_ID } from './padroes.js';
 import { carregarMarca } from './marca.js';
 import { renderPadroes } from './pagina-padroes.js';
 import { renderMetricas } from './pagina-metricas.js';
@@ -37,20 +39,21 @@ const prefs = (() => {
 // ---------------------------------------------------------------------------
 // Guias de composição (só no editor; não entram na exportação)
 
-const GUIAS_SVG = `<svg class="guias" viewBox="0 0 1080 1440" preserveAspectRatio="none" aria-hidden="true">
-  <g class="g-diagonais"><path d="M0 0L1080 1440M1080 0L0 1440"/></g>
-  <g class="g-tercos"><path d="M360 0V1440M720 0V1440M0 480H1080M0 960H1080"/></g>
-  <g class="g-quadrado"><path class="veu-q" d="M0 0H1080V180H0ZM0 1260H1080V1440H0Z"/><rect x="0" y="180" width="1080" height="1080"/></g>
+/** Guias na altura do canvas do formato (1440 no post, 1620 no pin). O recorte quadrado só existe no post. */
+const guiasSvg = (alt) => `<svg class="guias" viewBox="0 0 1080 ${alt}" preserveAspectRatio="none" aria-hidden="true">
+  <g class="g-diagonais"><path d="M0 0L1080 ${alt}M1080 0L0 ${alt}"/></g>
+  <g class="g-tercos"><path d="M360 0V${alt}M720 0V${alt}M0 ${alt / 3}H1080M0 ${(2 * alt) / 3}H1080"/></g>
+  ${alt === 1440 ? '<g class="g-quadrado"><path class="veu-q" d="M0 0H1080V180H0ZM0 1260H1080V1440H0Z"/><rect x="0" y="180" width="1080" height="1080"/></g>' : ''}
 </svg>`;
 const GUIAS = [
   ['diagonais', 'Diagonais', 'Diagonais do card, de canto a canto'],
-  ['tercos', 'Terços', 'Regra dos terços (360 / 720 px na horizontal, 480 / 960 px na vertical)'],
-  ['quadrado', '1080×1080', 'Recorte quadrado do grid do perfil (y 180 a 1260)'],
+  ['tercos', 'Terços', 'Regra dos terços: o card dividido em três, na horizontal e na vertical'],
+  ['quadrado', '1080×1080', 'Recorte quadrado do grid do perfil (y 180 a 1260)', '3x4'],
 ];
 
 function renderGuias() {
   const ativas = prefs.get('guias', []);
-  $('#guias').innerHTML = GUIAS.map(([id, rot, dica]) =>
+  $('#guias').innerHTML = GUIAS.filter((g) => !g[3] || g[3] === formatoDe(pub)).map(([id, rot, dica]) =>
     `<button class="${ativas.includes(id) ? 'ativo' : ''}" data-guia="${id}" title="${dica}" aria-pressed="${ativas.includes(id)}">${rot}</button>`).join('');
   GUIAS.forEach(([id]) => $('#palco').classList.toggle(`com-${id}`, ativas.includes(id)));
 }
@@ -66,20 +69,43 @@ const imagens = new Map(); // ref → dataURL original
 const nucleo = () => NUCLEOS[pub.nucleo];
 const cardAtivo = () => pub?.cards[pub.ativo];
 
-function novoCard(modelo, nucleoId) {
-  return { id: uid('c'), modelo, campos: exemploDe(nucleoId, modelo), imgs: {} };
+// Formatos: '3x4' (posts do Instagram, padrão das publicações antigas) e 'pin' (Pinterest).
+const formatoDe = (p) => p?.formato || '3x4';
+const ehPin = (p = pub) => formatoDe(p) === 'pin';
+const altDe = (p = pub) => FORMATO_POR_ID[formatoDe(p)].canvas[1];
+const classeCard = (p = pub) => (ehPin(p) ? 'card pin' : 'card');
+/** Subpáginas de Publicações: [rota, formato, nome]. */
+const SUBPAGINAS = [['posts', '3x4', 'Posts 3:4'], ['pins', 'pin', 'Pins 2:3']];
+const rotaDoFormato = (f) => SUBPAGINAS.find((x) => x[1] === f)?.[0] || 'posts';
+let formatoInicio = prefs.get('formatoInicio', '3x4');
+/** As informações padrão lembradas por núcleo são separadas por formato. */
+const chaveGlobais = (nucleoId, formato) => (formato === 'pin' ? 'globais-pin:' : 'globais:') + nucleoId;
+
+function novoCard(modelo, nucleoId, formato = '3x4') {
+  const c = { id: uid('c'), modelo, campos: exemploDe(nucleoId, modelo), imgs: {} };
+  if (formato === 'pin') c.pin = pinterest.pinVazio(nucleoId);
+  return c;
 }
 
-async function novaPublicacao(nucleoId) {
-  const ultimos = (await local.lerMeta('globais:' + nucleoId)) || {};
+async function novaPublicacao(nucleoId, formato = '3x4') {
+  const ultimos = (await local.lerMeta(chaveGlobais(nucleoId, formato))) || {};
   const agora = new Date().toISOString();
+  const globais = { ...padroesDoNucleo(nucleoId), ...ultimos, dataPublicacao: '' };
+  if (formato === 'pin') {
+    // o link é de cada projeto; os créditos, lembrados do último projeto do núcleo
+    globais.link = '';
+    globais.projeto = ''; // cada publicação de pins é um projeto, peça ou texto novo
+    globais.creditos = ultimos.creditos ?? pinterest.CREDITOS[nucleoId].pt;
+    globais.creditosEn = ultimos.creditosEn ?? pinterest.CREDITOS[nucleoId].en;
+  }
   return {
     id: uid('p'),
     versao: VERSAO,
+    formato,
     nucleo: nucleoId,
     titulo: '',
-    globais: { ...padroesDoNucleo(nucleoId), ...ultimos, dataPublicacao: '' },
-    cards: SEQUENCIAS[nucleoId].map((m) => novoCard(m, nucleoId)),
+    globais,
+    cards: (formato === 'pin' ? SEQUENCIA_PIN : SEQUENCIAS[nucleoId]).map((m) => novoCard(m, nucleoId, formato)),
     ativo: 0,
     criado: agora,
     atualizado: agora,
@@ -106,7 +132,7 @@ function salvar() {
   clearTimeout(timerLocal);
   timerLocal = setTimeout(async () => {
     await local.gravarPub(pub);
-    await local.gravarMeta('globais:' + pub.nucleo, pub.globais);
+    await local.gravarMeta(chaveGlobais(pub.nucleo, formatoDe(pub)), pub.globais);
   }, 350);
 }
 
@@ -300,16 +326,28 @@ async function carregarArquivo() {
   await montarResumos();
 }
 
+const DICA_CRIAR = {
+  '3x4': 'Escolha o núcleo. O carrossel já começa com o repertório de modelos dele.',
+  pin: 'Escolha o núcleo. Cada publicação é um projeto, uma peça ou um texto: de 8 a 15 pins, publicados aos poucos e em pastas diferentes. Começa com um pin; os outros entram pelo +.',
+};
+
 function renderInicio() {
+  const fmt = formatoInicio, pins = fmt === 'pin';
+  $('#pubNav').innerHTML = SUBPAGINAS.map(([r, f, nome]) => `<a href="#/publicacoes/${r}" class="${f === fmt ? 'ativo' : ''}">${nome}</a>`).join('')
+    + '<span class="em-breve" title="Em breve">Stories 9:16</span>';
+  $('#criarTit').textContent = pins ? 'Novo projeto de pins' : 'Nova publicação';
+  $('#criarInfo').dataset.info = DICA_CRIAR[fmt];
+  const doFormato = resumos.filter((r) => (r.formato || '3x4') === fmt);
+  const unid = (q) => (pins ? (q === 1 ? 'projeto' : 'projetos') : q === 1 ? 'publicação' : 'publicações');
   $('#tiles').innerHTML = ORDEM_NUCLEOS.map((id) => {
     const n = NUCLEOS[id];
     const cor = tintaSobre(n.painel);
-    const qtd = resumos.filter((r) => r.nucleo === id).length;
+    const qtd = doFormato.filter((r) => r.nucleo === id).length;
     return `<button class="tile" data-criar="${id}" style="--painel:${n.painel};--tinta:${cor}">
       <span class="tile-selo">${mark(n.selo, 54)}</span>
       <span class="tile-txt"><b>Odisse ${n.nome}</b><small>${n.conteudo}</small></span>
       <span class="tile-mais">+ Criar</span>
-      <span class="tile-qtd">${qtd} ${qtd === 1 ? 'publicação' : 'publicações'}</span>
+      <span class="tile-qtd">${qtd} ${unid(qtd)}</span>
     </button>`;
   }).join('');
 
@@ -317,10 +355,11 @@ function renderInicio() {
     .map(([v, r]) => `<button data-filtro="${v}" class="${filtro === v ? 'ativo' : ''}">${r}</button>`).join('');
 
   const busca = $('#busca').value.trim().toLowerCase();
-  const lista = resumos.filter((r) => (filtro === 'todos' || r.nucleo === filtro) && (!busca || (r.titulo || '').toLowerCase().includes(busca)));
-  $('#arquivoInfo').textContent = resumos.length
-    ? `${resumos.length} ${resumos.length === 1 ? 'publicação' : 'publicações'}`
-    : 'Nenhuma publicação ainda.';
+  const lista = doFormato.filter((r) => (filtro === 'todos' || r.nucleo === filtro) && (!busca || (r.titulo || '').toLowerCase().includes(busca)));
+  $('#arquivoInfo').textContent = doFormato.length
+    ? `${doFormato.length} ${unid(doFormato.length)}`
+    : pins ? 'Nenhum projeto de pins ainda.' : 'Nenhuma publicação ainda.';
+  $('#listaPubs').classList.toggle('pins', pins);
 
   const data = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   $('#listaPubs').innerHTML = lista.length ? lista.map((r) => {
@@ -332,7 +371,7 @@ function renderInicio() {
       <a class="pub-capa" href="#/p/${r.id}">${capa}</a>
       <div class="pub-info">
         <a href="#/p/${r.id}" class="pub-nome">${esc(r.titulo || 'Sem título')}</a>
-        <span class="pub-meta"><i style="background:${n.painel}"></i>${n.nome} · ${r.ncards} cards</span>
+        <span class="pub-meta"><i style="background:${n.painel}"></i>${n.nome} · ${r.ncards} ${pins ? (r.ncards === 1 ? 'pin' : 'pins') : 'cards'}</span>
         <span class="pub-data">${data(r.atualizado)}${r.rascunho ? ' · <b class="rascunho" title="Há alterações deste computador que ainda não foram salvas na nuvem">não salvo</b>' : ''}</span>
       </div>
       <div class="pub-acoes">
@@ -340,7 +379,41 @@ function renderInicio() {
         <button data-del="${r.id}" class="perigo" title="Excluir">Excluir</button>
       </div>
     </article>`;
-  }).join('') : `<p class="vazio-arquivo">${resumos.length ? 'Nada encontrado com esse filtro.' : 'As publicações que você criar aparecem aqui.'}</p>`;
+  }).join('') : `<p class="vazio-arquivo">${doFormato.length ? 'Nada encontrado com esse filtro.' : pins ? 'Os projetos de pins que você criar aparecem aqui.' : 'As publicações que você criar aparecem aqui.'}</p>`;
+  $('#pastasSec').hidden = !pins;
+  if (pins) renderPastas();
+}
+
+// ---- Pastas do Pinterest (subpágina Pins) --------------------------------------
+
+function renderPastas() {
+  const lista = pinterest.listaPastas();
+  $('#pastasSec').innerHTML = `<div class="sec-cab linha"><div>
+      <h2>Pastas do Pinterest${info('As pastas seguem o que as pessoas buscam, não os nomes dos projetos: cada projeto se espalha por várias. A ordem aqui é a do perfil. Valem para todos os computadores.')}</h2>
+      <p>${lista.length} pastas · Arquitetos, Objetos, Elaia, Estúdio e as comuns a todos</p></div></div>
+    <div class="pastas-grupos">${pinterest.GRUPOS_PASTA.map(([g, nome]) => {
+      const itens = lista.filter((x) => x.grupo === g);
+      return `<div class="pastas-grupo" data-grupo="${g}">
+        <h3>${nome} <small>${itens.length}</small></h3>
+        ${itens.map((x, i) => `<div class="pasta-item" data-pasta="${esc(x.id)}">
+          <input class="pasta-nome" data-pasta-campo="nome" value="${esc(x.nome)}" placeholder="Nome da pasta" aria-label="Nome da pasta">
+          <div class="pasta-acoes">
+            <button data-pasta-mover="-1" ${i === 0 ? 'disabled' : ''} title="Subir">↑</button>
+            <button data-pasta-mover="1" ${i === itens.length - 1 ? 'disabled' : ''} title="Descer">↓</button>
+            <button data-pasta-remover class="perigo" title="Remover a pasta">×</button>
+          </div>
+          <input class="pasta-desc" data-pasta-campo="desc" value="${esc(x.desc || '')}" placeholder="O que entra" aria-label="O que entra nesta pasta">
+        </div>`).join('') || '<p class="vazio">Nenhuma pasta.</p>'}
+        <button class="pasta-mais" data-pasta-nova="${g}">+ Pasta</button>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function mudarPastas(fn, redesenhar = true) {
+  const lista = structuredClone(pinterest.listaPastas());
+  fn(lista);
+  pinterest.gravarPastas(lista).then((ok) => { if (!ok) aviso('Pastas guardadas neste computador; não foi possível salvar na nuvem.'); });
+  if (redesenhar) renderPastas();
 }
 
 async function abrirPublicacao(id) {
@@ -372,7 +445,11 @@ async function duplicarPublicacao(id) {
   if (!p) return;
   const agora = new Date().toISOString();
   const copia = { ...structuredClone(p), id: uid('p'), titulo: `${tituloDe(p)} (cópia)`, criado: agora, atualizado: agora };
-  copia.cards.forEach((c) => { c.id = uid('c'); });
+  const novos = new Map(copia.cards.map((c) => [c.id, uid('c')]));
+  copia.cards.forEach((c) => {
+    c.id = novos.get(c.id);
+    if (c.pin?.par) c.pin.par = novos.get(c.pin.par); // versões PT/EN continuam ligadas na cópia
+  });
   copia.salvoEm = copia.atualizado;
   await local.gravarPub(copia);
   await nuvem.gravar(copia).catch(() => { copia.salvoEm = ''; return local.gravarPub(copia); });
@@ -406,6 +483,15 @@ function renderEditor() {
   $('#pubTitulo').value = pub.titulo || '';
   $('#pubTitulo').placeholder = pub.globais.projeto || 'Título da publicação';
   document.title = `${tituloDe(pub)} · Universo`;
+  const pin = ehPin();
+  document.body.classList.toggle('editor-pin', pin);
+  $('#btVoltar').href = `#/publicacoes/${rotaDoFormato(formatoDe(pub))}`;
+  $('#cardRot').textContent = pin ? 'Dados do pin' : 'Dados do card';
+  $('#btExportarCard').textContent = pin ? 'Exportar pin' : 'Exportar card';
+  $('#btExportarTudo').textContent = pin ? 'Exportar lote (.zip)' : 'Exportar carrossel';
+  $('#btExportarCard').title = pin ? 'PNG em 1000 × 1500' : 'JPG em 1080 × 1440';
+  $('#btExportarTudo').title = pin ? 'Todos os pins em PNG, com o textos.txt (título, descrição, pasta e link de cada pin)' : 'Todos os cards em JPG, num .zip';
+  renderGuias();
   renderGlobais();
   renderTrilho();
   renderModelos();
@@ -422,15 +508,27 @@ const CAMPOS_GLOBAIS = [
   ] },
 ];
 
+/** Dados da publicação de pins: projeto, link padrão e créditos (fecham a descrição de cada pin). */
+const CAMPOS_PIN = [
+  { k: '__titulo', rot: 'Nome da publicação' },
+  { k: 'projeto', rot: 'Projeto, peça ou texto', dica: 'Entra na campanha dos links (utm_campaign) e no nome dos arquivos, quando a publicação não tem nome.' },
+  { k: 'dataPublicacao', rot: 'Data dos arquivos', tipo: 'date', dica: 'Data no nome dos arquivos exportados (AAMMDD). A programação de cada pin entra depois, no pool de mídias.' },
+  { k: 'link', rot: 'Link de destino padrão', tipo: 'url', ph: 'https://projetos.odisse.com.br/…', dica: 'Página do projeto, da peça ou do texto (nunca a página inicial). Vale para os pins sem link próprio.' },
+  { k: 'creditos', rot: 'Créditos', dica: 'Fecham a descrição de cada pin: núcleo e parceiros, quando houver (fornecedor, fotógrafo).' },
+  { k: 'creditosEn', rot: 'Créditos em inglês', dica: 'Fecham a descrição dos pins em inglês.', soComEn: true },
+];
+
 function renderGlobais() {
   const n = nucleo();
   const g = pub.globais;
-  const [grp] = CAMPOS_GLOBAIS;
+  const pin = ehPin();
+  const campos = pin ? CAMPOS_PIN.filter((c) => !c.soComEn || pub.cards.some((x) => x.pin?.idioma === 'en')) : CAMPOS_GLOBAIS[0].campos;
   let h = '';
-  for (const c of grp.campos) {
+  for (const c of campos) {
     const valor = c.k === '__titulo' ? pub.titulo : g[c.k];
-    const elaia = n.autoria && c.rotElaia;
-    const input = `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${c.k === '__titulo' ? ' placeholder="Ex.: Apto RP 201 · lançamento"' : ''}>`;
+    const elaia = !pin && n.autoria && c.rotElaia;
+    const ph = c.ph || (c.k === '__titulo' ? 'Ex.: Apto RP 201 · lançamento' : '');
+    const input = `<input type="${c.tipo || 'text'}" data-k="${c.k}" value="${esc(valor)}"${ph ? ` placeholder="${esc(ph)}"` : ''}>`;
     h += `<label class="campo" data-campo-global="${c.k}"><span>${elaia ? c.rotElaia : c.rot}${info(elaia ? c.dicaElaia : c.dica)}</span>${input}</label>`;
   }
   // Tratamento de imagem do núcleo (duotone): liga/desliga para todas as imagens da publicação
@@ -456,6 +554,7 @@ function aoMudarGlobal(k, v) {
   }
   pub.globais[k] = v;
   salvar();
+  if (ehPin() && ['link', 'creditos', 'creditosEn', 'projeto', 'dataPublicacao'].includes(k)) atualizarPinterest();
   clearTimeout(timerGlobais);
   timerGlobais = setTimeout(() => {
     renderTrilho();
@@ -471,7 +570,8 @@ function renderModelos() {
   const g = pub.globais;
   const atual = cardAtivo()?.modelo;
   const fechados = prefs.get('gruposFechados', []);
-  const lista = modelosDo(n.id);
+  const lista = modelosDo(n.id, formatoDe(pub));
+  $('#modelos').classList.toggle('pins', ehPin());
   $('#modelos').innerHTML = GRUPOS.map(([gid, gnome]) => {
     const itens = lista.filter((m) => grupoDe(m) === gid);
     if (!itens.length) return '';
@@ -479,7 +579,7 @@ function renderModelos() {
       <summary><span>${gnome}</span><small>${itens.length}</small></summary>
       <div class="modelos">${itens.map((m) => `
         <button class="modelo ${m.id === atual ? 'ativo' : ''}" data-modelo="${m.id}">
-          <div class="mini"><div class="card">${renderCard({
+          <div class="mini"><div class="${classeCard()}">${renderCard({
             card: { id: 'm-' + m.id, modelo: m.id, campos: exemploDe(n.id, m.id), imgs: {} },
             indice: 0, total: 8, nucleo: n, globais: g, modo: 'miniatura', fonteImagem,
           })}</div></div>
@@ -548,8 +648,11 @@ function renderImagens() {
       ? `<button data-acao="tratada" data-slot="${s}" class="${!semTratamento(im) ? 'ativo' : ''}">${n.tratamentoNome.split(',')[0]}</button>
          <button data-acao="original" data-slot="${s}" class="${semTratamento(im) ? 'ativo' : ''}">Original</button>`
       : '';
+    const amplia = ehPin() ? ampliacao(c, s, im) : 0;
+    const avisoRes = amplia > 1.02
+      ? `<small class="img-aviso">Será ampliada ${Math.round((amplia - 1) * 100)}% na exportação (1000 × 1500). Prefira uma imagem maior.</small>` : '';
     h += `<div class="img-item" data-slot="${s}">
-      <div class="img-topo"><div class="th" style="background-image:url('${th}')"></div><div><b>${nome}</b><span>${im.w} × ${im.h}px</span></div></div>
+      <div class="img-topo"><div class="th" style="background-image:url('${th}')"></div><div><b>${nome}</b><span>${im.w} × ${im.h}px</span>${avisoRes}</div></div>
       <div class="img-acoes">
         <button data-acao="trocar" data-slot="${s}">Trocar</button>
         <button data-acao="remover" data-slot="${s}">Remover</button>
@@ -564,6 +667,106 @@ function renderImagens() {
     </div>`;
   }
   el.innerHTML = h;
+  renderPinterest(c);
+}
+
+/** Quanto a imagem é ampliada na exportação (1 = pixel a pixel), pela área que ocupa no card ativo. */
+function ampliacao(c, s, im) {
+  const el = $(`#trilho .peca[data-id="${c.id}"] .slot[data-slot="${s}"]`);
+  if (!el || !im.w || !im.h) return 0;
+  const k = FORMATO_POR_ID[formatoDe(pub)].larg / LARG;
+  return Math.max(el.offsetWidth / im.w, el.offsetHeight / im.h) * (im.z ?? 1) * k;
+}
+
+// ---- Pinterest: campos do pin ativo ------------------------------------------
+
+const codigoPin = (i) => `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}`;
+const linkDoPin = (i) => pinterest.linkFinal(pub.cards[i].pin || {}, pub.globais, {
+  sigla: nucleo().sigla, projeto: pub.globais.projeto || pub.titulo, codigo: codigoPin(i),
+});
+const IDIOMAS = [['pt', 'Português'], ['en', 'Inglês']];
+const TIPOS = [['imagem', 'Imagem'], ['video', 'Capa de vídeo']];
+
+function renderPinterest(c = cardAtivo()) {
+  const el = $('#pinterest');
+  if (!ehPin() || !c) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  const p = c.pin || (c.pin = pinterest.pinVazio(pub.nucleo));
+  const g = pub.globais;
+  const en = p.idioma === 'en';
+  const par = p.par ? pub.cards.findIndex((x) => x.id === p.par) : -1;
+  // pastas: as do núcleo da publicação primeiro, depois as outras
+  const grupos = [...pinterest.GRUPOS_PASTA].sort((a, b) => (b[0] === pub.nucleo) - (a[0] === pub.nucleo));
+  const lista = pinterest.listaPastas();
+  const opPastas = grupos.map(([gid, gnome]) => {
+    const itens = lista.filter((x) => x.grupo === gid);
+    return itens.length ? `<optgroup label="${esc(gnome)}">${itens.map((x) => `<option value="${esc(x.id)}" ${x.id === p.pasta ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+  const seg = (k, valores) => `<div class="seg" role="group">${valores.map(([v, rot]) =>
+    `<button data-pin-v="${k}" data-v="${v}" class="${p[k] === v ? 'ativo' : ''}" aria-pressed="${p[k] === v}">${rot}</button>`).join('')}</div>`;
+  const campo = (k, rot, input, dica = '') => `<div class="campo pin-campo" data-pin-campo="${k}">
+      <span>${rot}${info(dica)}<small class="conta" data-conta="${k}"></small></span>${input}
+      <ul class="pin-avisos" data-avisos="${k}"></ul></div>`;
+  el.innerHTML = `<h3>Pinterest${info('Título, descrição, pasta e link deste pin. Saem no textos.txt do lote. O texto serve à busca: descreva o que a imagem mostra, sem chamadas para ação nem hashtags.')}</h3>
+    <div class="opcao"><span>Idioma</span>${seg('idioma', IDIOMAS)}</div>
+    ${campo('titulo', en ? 'Título (inglês)' : 'Título', `<input type="text" data-pin="titulo" value="${esc(p.titulo)}" placeholder="Termo de busca primeiro, depois o lugar">`,
+      `O termo de busca primeiro, depois o lugar. Até 100 caracteres, sem ponto final. Ex.: ${pinterest.EXEMPLO.titulo}`)}
+    ${campo('descricao', en ? 'Descrição (inglês)' : 'Descrição', `<textarea data-pin="descricao" rows="5" placeholder="O que a imagem mostra e de qual projeto, peça ou texto. Depois, a decisão de projeto: materiais, tipologia e cidade.">${esc(p.descricao)}</textarea><small class="pin-cred" data-cred></small>`,
+      `Primeira frase: o que a imagem mostra e de qual projeto, peça ou texto. Depois, uma ou duas frases sobre a decisão de projeto: materiais, tipologia e cidade. Os créditos da publicação entram no fim; o total vai até 500 caracteres. Ex.: ${pinterest.EXEMPLO.descricao}`)}
+    ${campo('alt', 'Texto alternativo', `<textarea data-pin="alt" rows="2" placeholder="O que a imagem mostra, para quem não a vê.">${esc(p.alt)}</textarea>`,
+      'Descrição da imagem para leitores de tela; também ajuda a busca.')}
+    ${campo('pasta', 'Pasta', `<select data-pin="pasta"><option value="">Escolha a pasta</option>${opPastas}</select>`,
+      'Pastas por tema, editáveis na subpágina Pins 2:3. Um projeto se espalha por várias.')}
+    ${campo('link', 'Link de destino', `<input type="url" data-pin="link" value="${esc(p.link)}" placeholder="${esc(g.link || 'Página do projeto, da peça ou do texto')}">`,
+      'Vazio, vale o link padrão da publicação. As UTMs entram sozinhas.')}
+    <div class="pin-final"><span>Link com UTMs <button class="mini-bt" data-pin-acao="copiar">Copiar</button></span><code data-link-final></code></div>
+    <div class="opcao"><span>Tipo${info('Capa de vídeo: o reel entra como pin de vídeo, a partir do master limpo, com esta imagem de capa.')}</span>${seg('tipo', TIPOS)}</div>
+    <div class="pin-par">${par >= 0
+      ? `<button class="mini-bt" data-pin-acao="par">Ir para a versão em ${en ? 'português' : 'inglês'} (pin ${par + 1})</button>`
+      : en ? '' : `<button class="mini-bt" data-pin-acao="en" title="Projetos com potencial internacional ganham também pins em inglês">+ Versão em inglês</button>`}</div>`;
+  atualizarPinterest();
+}
+
+/** Contadores, avisos, créditos e link final, sem redesenhar o painel (o foco fica onde está). */
+function atualizarPinterest() {
+  const c = cardAtivo();
+  const el = $('#pinterest');
+  if (!ehPin() || !c?.pin || el.hidden) return;
+  const p = c.pin, g = pub.globais;
+  const conta = (k, n, max) => {
+    const s = $(`[data-conta="${k}"]`, el);
+    if (!s) return;
+    s.textContent = `${n}/${max}`;
+    s.classList.toggle('passou', n > max);
+  };
+  conta('titulo', String(p.titulo || '').trim().length, pinterest.LIMITE.titulo);
+  conta('descricao', pinterest.descricaoFinal(p, g).length, pinterest.LIMITE.descricao);
+  conta('alt', String(p.alt || '').trim().length, pinterest.LIMITE.alt);
+  const cred = p.idioma === 'en' ? g.creditosEn : g.creditos;
+  const credEl = $('[data-cred]', el);
+  if (credEl) credEl.textContent = cred ? `+ ${cred}` : 'Sem créditos na publicação.';
+  for (const k of ['titulo', 'descricao', 'alt', 'pasta', 'link']) {
+    const ul = $(`[data-avisos="${k}"]`, el);
+    if (ul) ul.innerHTML = pinterest.avisosDe(k, p, g).map((a) => `<li>${esc(a)}</li>`).join('');
+  }
+  const fim = $('[data-link-final]', el);
+  if (fim) fim.textContent = linkDoPin(pub.ativo) || '—';
+}
+
+/** Versão em inglês do pin ativo: mesma imagem e composição, título e descrição a escrever. */
+function criarVersaoEn() {
+  const c = cardAtivo();
+  const novo = structuredClone(c);
+  novo.id = uid('c');
+  novo.pin = { ...pinterest.pinVazio(pub.nucleo), pasta: c.pin.pasta, link: c.pin.link, tipo: c.pin.tipo, idioma: 'en', par: c.id };
+  c.pin.par = novo.id;
+  pub.cards.splice(pub.ativo + 1, 0, novo);
+  pub.ativo += 1;
+  salvar();
+  renderGlobais();
+  renderTrilho();
+  renderImagens();
+  aviso('Versão em inglês criada. Escreva o título e a descrição em inglês.');
 }
 
 // [campo, rótulo, mín, máx, passo da barra, padrão, unidade] — o zoom aparece em %
@@ -697,7 +900,7 @@ function escala(qtd) {
   const W = wrap.clientWidth - 112;
   const H = wrap.clientHeight - 44 - 22;
   const gap = modo === 'todos' ? 18 : 28;
-  const kH = H / ALT;
+  const kH = H / altDe();
   const unidades = modo === '3' ? 1 + 2 * LATERAL : qtd;
   const kW = (W - 70 - gap * qtd) / (unidades * LARG);
   let k = Math.min(kH, kW);
@@ -720,14 +923,15 @@ function renderTrilho() {
     const c = pub.cards[i];
     const lateral = modo === '3' && i !== pub.ativo;
     const kk = lateral ? k * LATERAL : k;
+    const en = c.pin?.idioma === 'en' ? ' · EN' : '';
     h += `<div class="peca ${i === pub.ativo ? 'ativa' : ''} ${lateral ? 'lateral' : ''}" data-id="${c.id}" data-i="${i}">
-      <span class="num">${String(i + 1).padStart(2, '0')} · ${codigoDe(pub.nucleo, c.modelo)}</span>
-      <div class="moldura" style="--k:${kk}"><div class="card editar">${renderCard({
+      <span class="num">${String(i + 1).padStart(2, '0')} · ${codigoDe(pub.nucleo, c.modelo)}${en}</span>
+      <div class="moldura" style="--k:${kk};--alt:${altDe()}px"><div class="${classeCard()} editar">${renderCard({
         card: c, indice: i, total: pub.cards.length, nucleo: n, globais: pub.globais, modo: 'editar', fonteImagem,
-      })}</div>${GUIAS_SVG}</div>
+      })}</div>${guiasSvg(altDe())}</div>
     </div>`;
   }
-  h += `<button class="mais" id="btMais" title="Adicionar card ${modo === 'todos' ? 'no fim' : 'depois deste'}">+</button>`;
+  h += `<button class="mais" id="btMais" title="Adicionar ${ehPin() ? 'pin' : 'card'} ${modo === 'todos' ? 'no fim' : 'depois deste'}">+</button>`;
   trilho.innerHTML = h;
   $$('.card', trilho).forEach(ajustarLayout);
   atualizarAvisosFicha();
@@ -740,7 +944,7 @@ function renderTrilho() {
 
 function renderBarra() {
   const c = cardAtivo();
-  $('#posicao').textContent = `Card ${pub.ativo + 1} de ${pub.cards.length}`;
+  $('#posicao').textContent = `${ehPin() ? 'Pin' : 'Card'} ${pub.ativo + 1} de ${pub.cards.length}`;
   $('#modeloAtual').textContent = c ? `· ${modeloDe(pub.nucleo, c.modelo).nome}` : '';
   $('#btMoverEsq').disabled = pub.ativo <= 0;
   $('#btMoverDir').disabled = pub.ativo >= pub.cards.length - 1;
@@ -762,10 +966,13 @@ function irPara(i) {
 }
 
 function adicionarCard() {
-  const lista = modelosDo(pub.nucleo).filter((m) => grupoDe(m) === 'corpo');
+  const pin = ehPin();
+  const lista = modelosDo(pub.nucleo, formatoDe(pub)).filter((m) => grupoDe(m) === (pin ? 'pin' : 'corpo'));
   const i = lista.findIndex((m) => m.id === cardAtivo()?.modelo);
   const sugestao = lista[(i + 1) % lista.length].id;
-  const c = novoCard(sugestao, pub.nucleo);
+  const c = novoCard(sugestao, pub.nucleo, formatoDe(pub));
+  // o pin novo segue a composição do pin ativo (o mesmo projeto costuma manter o registro)
+  if (pin && cardAtivo()?.opcoes) c.opcoes = { ...cardAtivo().opcoes };
   const pos = modo === 'todos' ? pub.cards.length : pub.ativo + 1;
   pub.cards.splice(pos, 0, c);
   pub.ativo = pos;
@@ -773,7 +980,7 @@ function adicionarCard() {
   renderTrilho();
   renderModelos();
   renderImagens();
-  aviso('Card adicionado. Escolha o modelo à direita.');
+  aviso(pin ? 'Pin adicionado.' : 'Card adicionado. Escolha o modelo à direita.');
 }
 
 function mover(delta) {
@@ -818,12 +1025,15 @@ function dataArquivo() {
   const d = v ? new Date(v + 'T12:00:00') : new Date();
   return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
-const nomeBase = () => slug(pub.titulo || pub.globais.projeto) || 'post';
-const nomeArquivo = (i) => `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${nomeBase()}.jpg`;
+const nomeBase = () => slug(pub.titulo || pub.globais.projeto) || (ehPin() ? 'projeto' : 'post');
+/** Post: AAMMDD-NNN-nn-assunto.jpg · Pin: AAMMDD-NNN-nn-assunto-pin.png (versão em inglês: …-en-pin.png). */
+const nomeArquivo = (i) => (ehPin()
+  ? `${codigoPin(i)}-${nomeBase()}${pub.cards[i].pin?.idioma === 'en' ? '-en' : ''}-pin.png`
+  : `${dataArquivo()}-${String(i + 1).padStart(3, '0')}-${nucleo().sigla}-${nomeBase()}.jpg`);
 
 async function montarCard(p, i) {
   const host = $('#exportador');
-  host.innerHTML = `<div class="card">${renderCard({
+  host.innerHTML = `<div class="${classeCard(p)}">${renderCard({
     card: p.cards[i], indice: i, total: p.cards.length, nucleo: NUCLEOS[p.nucleo], globais: p.globais, modo: 'exportar', fonteImagem,
   })}</div>`;
   const no = host.firstElementChild;
@@ -833,21 +1043,24 @@ async function montarCard(p, i) {
   return no;
 }
 
-/** JPG otimizado: 1080 × 1440, sRGB, qualidade 0,86 (bom equilíbrio para o Instagram, que recomprime). */
+/** Post: JPG otimizado, 1080 × 1440, sRGB, qualidade 0,86 (bom equilíbrio para o Instagram, que recomprime).
+ *  Pin: PNG 1000 × 1500, desenhado em 1080 × 1620 e reduzido (a margem de 52 vira 48). */
 const QUALIDADE_JPG = 0.86;
-async function gerarJpg(i) {
+async function gerarArquivo(i) {
   const no = await montarCard(pub, i);
-  const opc = { width: LARG, height: ALT, canvasWidth: LARG, canvasHeight: ALT, pixelRatio: 1, cacheBust: false, backgroundColor: COR.papel };
+  const f = FORMATO_POR_ID[formatoDe(pub)];
+  const [w, h] = f.canvas;
+  const opc = { width: w, height: h, canvasWidth: f.larg, canvasHeight: f.alt, pixelRatio: 1, cacheBust: false, backgroundColor: COR.papel };
   await window.htmlToImage.toCanvas(no, opc); // 1ª passada carrega as fontes
   const canvas = await window.htmlToImage.toCanvas(no, opc);
   $('#exportador').innerHTML = '';
-  return new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', QUALIDADE_JPG));
+  return new Promise((ok) => canvas.toBlob(ok, ehPin() ? 'image/png' : 'image/jpeg', QUALIDADE_JPG));
 }
 
 async function gerarCapa(p) {
   if (!p.cards.length) return '';
   const no = await montarCard(p, 0);
-  const url = await window.htmlToImage.toJpeg(no, { width: LARG, height: ALT, pixelRatio: 0.25, quality: 0.82, backgroundColor: COR.papel });
+  const url = await window.htmlToImage.toJpeg(no, { width: LARG, height: altDe(p), pixelRatio: 0.25, quality: 0.82, backgroundColor: COR.papel });
   $('#exportador').innerHTML = '';
   return url;
 }
@@ -862,24 +1075,55 @@ function baixar(url, nome) {
 }
 
 async function exportarCard() {
-  aviso('Gerando JPG…');
+  const pin = ehPin();
+  aviso(pin ? 'Gerando PNG…' : 'Gerando JPG…');
   await aguardarTratamentos([cardAtivo()]);
-  const u = URL.createObjectURL(await gerarJpg(pub.ativo));
+  const u = URL.createObjectURL(await gerarArquivo(pub.ativo));
   baixar(u, nomeArquivo(pub.ativo));
   setTimeout(() => URL.revokeObjectURL(u), 4000);
-  aviso('JPG exportado em 1080 × 1440.');
+  aviso(pin ? 'PNG exportado em 1000 × 1500.' : 'JPG exportado em 1080 × 1440.');
   salvarNaNuvem({ silencioso: true });
 }
 
+/** Lote de pins: o que vai para o textos.txt (seção 07 da estratégia do Pinterest). */
+function lotePins() {
+  const g = pub.globais;
+  const texto = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  return pub.cards.map((c, i) => {
+    const p = c.pin || pinterest.pinVazio(pub.nucleo);
+    return {
+      numero: String(i + 1).padStart(2, '0'),
+      arquivo: nomeArquivo(i),
+      pasta: pinterest.pastaDe(p.pasta)?.nome || '',
+      titulo: texto(p.titulo),
+      descricao: pinterest.descricaoFinal(p, g),
+      alt: texto(p.alt),
+      link: linkDoPin(i),
+      idioma: p.idioma || 'pt',
+      tipo: p.tipo || 'imagem',
+      avisos: ['titulo', 'descricao', 'pasta', 'link'].flatMap((k) => pinterest.avisosDe(k, p, g)),
+    };
+  });
+}
+
 async function exportarTudo() {
-  aviso(`Gerando ${pub.cards.length} cards…`);
+  const pin = ehPin();
+  aviso(`Gerando ${pub.cards.length} ${pin ? 'pins' : 'cards'}…`);
   await aguardarTratamentos(pub.cards);
   const zip = new window.JSZip();
-  for (let i = 0; i < pub.cards.length; i++) zip.file(nomeArquivo(i), await gerarJpg(i));
+  for (let i = 0; i < pub.cards.length; i++) zip.file(nomeArquivo(i), await gerarArquivo(i));
+  let pendentes = 0;
+  if (pin) {
+    const lote = lotePins();
+    pendentes = lote.filter((x) => x.avisos.length).length;
+    zip.file('textos.txt', pinterest.textosDoLote({ projeto: pub.globais.projeto || tituloDe(pub), nucleo: `Odisse ${nucleo().nome}`, pins: lote }));
+  }
   const u = URL.createObjectURL(await zip.generateAsync({ type: 'blob' }));
-  baixar(u, `${dataArquivo()}-${nucleo().sigla}-${nomeBase()}.zip`);
+  baixar(u, `${dataArquivo()}-${nucleo().sigla}-${nomeBase()}${pin ? '-pins' : ''}.zip`);
   setTimeout(() => URL.revokeObjectURL(u), 4000);
-  aviso('Carrossel exportado (.zip).');
+  aviso(pin
+    ? `Lote exportado (.zip, com textos.txt).${pendentes ? ` ${pendentes} ${pendentes === 1 ? 'pin tem' : 'pins têm'} avisos — veja o textos.txt.` : ''}`
+    : 'Carrossel exportado (.zip).');
   salvarNaNuvem({ silencioso: true });
 }
 
@@ -898,13 +1142,22 @@ async function sairDoEditor() {
   pub = null;
 }
 
+let pastasLidas = false;
 async function rotear() {
   if (!nuvem.ativa()) { mostrar('login'); $('#loginSenha').focus(); return; }
   const m = location.hash.match(/^#\/p\/(.+)$/);
   // o retorno do login do Meta às vezes chega com o fragmento "#_=_"; volta para as métricas
   if (location.hash === '#_=_') { history.replaceState(null, '', location.pathname + '#/metricas'); }
   const metr = location.hash.startsWith('#/metricas');
-  $('#menuPosts').classList.toggle('ativo', !metr);
+  $('#menuPub').classList.toggle('ativo', !metr);
+  if (!pastasLidas) {
+    pastasLidas = true;
+    pinterest.carregarPastas().then((mudou) => {
+      if (!mudou) return;
+      if (document.body.classList.contains('vista-inicio') && formatoInicio === 'pin') renderPastas();
+      if (pub && ehPin()) renderPinterest();
+    });
+  }
   $('#menuMetricas').classList.toggle('ativo', metr);
   if (metr) {
     if (pub) await sairDoEditor();
@@ -926,8 +1179,13 @@ async function rotear() {
     if (!resumos.length) await carregarArquivo();
     await abrirPublicacao(decodeURIComponent(m[1]));
   } else {
+    // Publicações: a subpágina do formato (#/publicacoes/posts, #/publicacoes/pins); sem ela, a última aberta
+    const sub = location.hash.match(/^#\/publicacoes\/([\w-]+)/)?.[1];
+    const f = SUBPAGINAS.find((x) => x[0] === sub);
+    if (!f) { history.replaceState(null, '', `#/publicacoes/${rotaDoFormato(formatoInicio)}`); }
+    else if (f[1] !== formatoInicio) { formatoInicio = f[1]; prefs.set('formatoInicio', formatoInicio); filtro = 'todos'; }
     if (pub) await sairDoEditor();
-    document.title = 'Universo · Posts 3:4';
+    document.title = `${SUBPAGINAS.find((x) => x[1] === formatoInicio)[2]} · Publicações · Universo`;
     mostrar('inicio');
     await montarResumos(); // na hora, com o que já está neste navegador
     renderInicio();
@@ -972,7 +1230,7 @@ function ligarEventos() {
   $('#tiles').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-criar]');
     if (!b) return;
-    const p = await novaPublicacao(b.dataset.criar);
+    const p = await novaPublicacao(b.dataset.criar, formatoInicio);
     await local.gravarPub(p);
     try {
       await nuvem.gravar({ ...p, salvoEm: p.atualizado });
@@ -988,6 +1246,44 @@ function ligarEventos() {
     renderInicio();
   });
   $('#busca').addEventListener('input', renderInicio);
+
+  // Pastas do Pinterest
+  const pastasSec = $('#pastasSec');
+  pastasSec.addEventListener('input', (e) => {
+    const k = e.target.dataset.pastaCampo;
+    if (!k) return;
+    const id = e.target.closest('[data-pasta]').dataset.pasta;
+    mudarPastas((l) => { const x = l.find((y) => y.id === id); if (x) x[k] = e.target.value; }, false);
+  });
+  pastasSec.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const id = b.closest('[data-pasta]')?.dataset.pasta;
+    if (b.dataset.pastaNova) {
+      const nova = { id: uid('pf'), grupo: b.dataset.pastaNova, nome: '', desc: '' };
+      mudarPastas((l) => {
+        const ult = l.map((x) => x.grupo).lastIndexOf(nova.grupo);
+        l.splice(ult < 0 ? l.length : ult + 1, 0, nova);
+      });
+      $(`[data-pasta="${nova.id}"] .pasta-nome`, pastasSec)?.focus();
+    } else if (b.dataset.pastaMover) {
+      mudarPastas((l) => {
+        const i = l.findIndex((x) => x.id === id);
+        const grupo = l[i].grupo, d = Number(b.dataset.pastaMover);
+        let j = i + d;
+        while (j >= 0 && j < l.length && l[j].grupo !== grupo) j += d; // troca com a vizinha do mesmo grupo
+        if (j >= 0 && j < l.length) [l[i], l[j]] = [l[j], l[i]];
+      });
+    } else if (b.dataset.pastaRemover !== undefined) {
+      if (!b.dataset.confirmar) {
+        b.dataset.confirmar = '1';
+        b.textContent = 'Remover?';
+        setTimeout(() => { delete b.dataset.confirmar; b.textContent = '×'; }, 2500);
+        return;
+      }
+      mudarPastas((l) => { const i = l.findIndex((x) => x.id === id); if (i >= 0) l.splice(i, 1); });
+    }
+  });
   $('#listaPubs').addEventListener('click', (e) => {
     const d = e.target.closest('[data-dup]');
     if (d) duplicarPublicacao(d.dataset.dup);
@@ -1107,6 +1403,35 @@ function ligarEventos() {
     renderTrilho();
     renderImagens();
   });
+  // Pinterest: campos do pin ativo
+  const pinEl = $('#pinterest');
+  const mudarPin = (e) => {
+    const k = e.target.dataset?.pin;
+    if (!k) return;
+    cardAtivo().pin[k] = e.target.value;
+    salvar();
+    atualizarPinterest();
+  };
+  pinEl.addEventListener('input', mudarPin);
+  pinEl.addEventListener('change', mudarPin);
+  pinEl.addEventListener('click', (e) => {
+    if (e.target.closest('label .info')) return;
+    const b = e.target.closest('button');
+    if (!b) return;
+    const c = cardAtivo();
+    if (b.dataset.pinV) {
+      c.pin[b.dataset.pinV] = b.dataset.v;
+      salvar();
+      renderPinterest();
+      if (b.dataset.pinV === 'idioma') { renderGlobais(); renderTrilho(); }
+    } else if (b.dataset.pinAcao === 'en') criarVersaoEn();
+    else if (b.dataset.pinAcao === 'par') irPara(pub.cards.findIndex((x) => x.id === c.pin.par));
+    else if (b.dataset.pinAcao === 'copiar') {
+      const link = linkDoPin(pub.ativo);
+      if (link) navigator.clipboard?.writeText(link).then(() => aviso('Link copiado.'), () => aviso('Não foi possível copiar.'));
+    }
+  });
+
   // Textos do card: estilo (01–03 do macro) e ligado/desligado
   const mudarTexto = (chave, mudanca) => {
     const c = cardAtivo();
@@ -1206,6 +1531,7 @@ function ligarEventos() {
   $('#btDuplicar').onclick = () => {
     const c = structuredClone(cardAtivo());
     c.id = uid('c');
+    if (c.pin) delete c.pin.par; // a cópia é outro pin (novo recorte), sem par em outro idioma
     pub.cards.splice(pub.ativo + 1, 0, c);
     pub.ativo += 1;
     salvar();
@@ -1223,6 +1549,8 @@ function ligarEventos() {
     }
     delete b.dataset.confirmar;
     b.textContent = 'Excluir';
+    const par = cardAtivo().pin?.par && pub.cards.find((x) => x.id === cardAtivo().pin.par);
+    if (par) delete par.pin.par;
     pub.cards.splice(pub.ativo, 1);
     pub.ativo = Math.min(pub.ativo, pub.cards.length - 1);
     salvar();

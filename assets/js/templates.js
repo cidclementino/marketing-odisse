@@ -958,6 +958,58 @@ const O14 = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// PINS 2:3 (Pinterest) — desenhados em 1080 × 1620 e exportados em 1000 × 1500 (mesma proporção:
+// a margem de 52 vira 48). Um modelo universal; o núcleo escolhe a composição padrão.
+// Sem carimbo e sem pontos: no feed do Pinterest a imagem compete sozinha, sem o contexto do perfil.
+// O selo fica centrado no rodapé, menor que no Instagram.
+
+export const ALT_PIN = 1620;
+const PIN_FAIXA = 270;                 // faixa de painel abaixo (e acima) da imagem
+const PIN_SELO = PIN_FAIXA / 2;        // centro do selo, a partir da base (meio da faixa de baixo)
+const EX_PIN = {
+  elaia: { titulo: 'A incerteza é mais assustadora que a alegoria.', linha: 'Backrooms, Labirinto Domesticado · Parte I' },
+  padrao: { titulo: 'Um horizonte comum.', linha: '' },
+};
+const P01 = {
+  id: 'p01', cod: 'P-01', grupo: 'pin', formato: 'pin', semCarimbo: true, semPontos: true,
+  nome: 'Pin',
+  desc: 'Imagem plena (sem texto), foto sobre painel ou título + imagem. Selo do núcleo centrado no rodapé. O texto do pin vai nos campos do Pinterest, não na imagem — salvo na composição com título (padrão do Elaia).',
+  slots: { a: 'Imagem do pin' },
+  opcoes: [
+    op('composicao', 'Composição', [['plena', 'Imagem plena'], ['painel', 'Foto sobre painel'], ['titulo', 'Título + imagem']],
+      (n) => ({ objetos: 'painel', elaia: 'titulo' }[n.id] || 'plena')),
+  ],
+  // na imagem plena não há fundo à mostra: sem preenchimento
+  preenche: (n) => n.painel,
+  semPreenchimento: (lerOp) => lerOp('composicao') === 'plena',
+  exemplo: porNucleo(EX_PIN),
+  render(t) {
+    const comp = t.op('composicao');
+    const selo = (cor) => {
+      const h = t.n.selo === 'mao' ? 54 : 48;
+      return `<div class="selo" style="top:${ALT_PIN - PIN_SELO - h / 2}px;color:${cor}" data-cor="${cor}">${mark(t.n.selo, h)}</div>`;
+    };
+    const fundo = `<div class="bloco" style="${pos(0, 0, LARG, ALT_PIN)}background:${t.f}"></div>`;
+    if (comp === 'painel') {
+      return `${fundo}${t.img('a', 0, PIN_FAIXA, LARG, ALT_PIN - 2 * PIN_FAIXA, { fundo: FUNDO_FOTO(t.n) })}${selo(t.tinta)}`;
+    }
+    if (comp === 'titulo') {
+      // título e linha de contexto no alto; a imagem, entre as margens, segue um Bloco depois do texto até a faixa de baixo
+      const y = 760, fim = ALT_PIN - PIN_FAIXA;
+      return `${fundo}
+        ${t.fluxo(M, TOPO, W12, 640, t.tinta, `${t.campo('titulo', 't-capa', '', { fit: 640, resto: true })}${t.linha()}`, '', 'tit')}
+        ${t.img('a', M, y, W12, fim - y, { segue: 'tit' })}
+        ${selo(t.tinta)}`;
+    }
+    // imagem plena, sem texto; véu leve na base para o selo
+    const veu = FOTO_CLARA(t.n) ? '' : `<div class="bloco" style="${pos(0, ALT_PIN - 420, LARG, 420)}background:linear-gradient(${hexA(t.n.veu, 0)},${hexA(t.n.veu, 0.42)})"></div>`;
+    return `${t.img('a', 0, 0, LARG, ALT_PIN, { fundo: FUNDO_FOTO(t.n) })}${veu}${selo(B)}`;
+  },
+};
+const PINS = [P01];
+const PIN_POR_ID = Object.fromEntries(PINS.map((m) => [m.id, m]));
+
 const UNIVERSAIS = [O01, O02, O03, O04, O05, O06, O07, O08, O09, O10, O11, O12, O13, O14];
 const UNIV_POR_ID = Object.fromEntries(UNIVERSAIS.map((m) => [m.id, m]));
 
@@ -1016,12 +1068,13 @@ export function migrarCard(nucleoId, card) {
 /** Opções do card, com os padrões do modelo para o núcleo. */
 export function opcoesDoModelo(modelo, n, card) {
   const base = modelo?.opcoes || [];
-  if (!modelo?.preenche || !n?.painel) return [...base, OP_CARIMBO];
+  const carimbo = modelo?.semCarimbo ? [] : [OP_CARIMBO];
   const lerOp = (k) => {
     const d = base.find((x) => x.k === k);
     return card?.opcoes?.[k] ?? (typeof d?.padrao === 'function' ? d.padrao(n) : d?.padrao);
   };
-  return [...base, opcaoPreenchimento(modelo, n, lerOp), OP_CARIMBO];
+  if (!modelo?.preenche || !n?.painel || modelo.semPreenchimento?.(lerOp)) return [...base, ...carimbo];
+  return [...base, opcaoPreenchimento(modelo, n, lerOp), ...carimbo];
 }
 export function opcoesDe(modelo, card, n) {
   const o = {};
@@ -1051,6 +1104,8 @@ export const SEQUENCIAS = {
   objetos: ['o01', 'o03', 'o13', 'o07', 'desenho', 'o09', 'o10'],
   elaia: ['o01', 'o03', 'o12', 'o08', 'o06', 'imagem-ficha', 'o10'],
 };
+/** Um projeto de pins começa com um pin; os outros entram pelo +. */
+export const SEQUENCIA_PIN = ['p01'];
 
 /**
  * Códigos de referência fixos: sigla do núcleo + número. A ordem destas listas é a numeração
@@ -1066,15 +1121,20 @@ const NUMERACAO = {
 const SIGLAS = { estudio: 'OE', arquitetos: 'OA', objetos: 'OO', elaia: 'EL' };
 export function codigoDe(nucleoId, modeloId) {
   if (UNIV_POR_ID[modeloId]) return UNIV_POR_ID[modeloId].cod;
+  if (PIN_POR_ID[modeloId]) return PIN_POR_ID[modeloId].cod;
   const i = NUMERACAO[nucleoId]?.indexOf(modeloId) ?? -1;
   return i < 0 ? '' : `${SIGLAS[nucleoId]}-${String(i + 1).padStart(2, '0')}`;
 }
 
-export function modelosDo(nucleoId) { return CATALOGO[nucleoId] || []; }
+/** Modelos de um núcleo num formato: '3x4' (posts) ou 'pin' (o pin universal). */
+export function modelosDo(nucleoId, formato = '3x4') { return formato === 'pin' ? PINS : CATALOGO[nucleoId] || []; }
 export function modeloDe(nucleoId, id) {
+  if (PIN_POR_ID[id]) return PIN_POR_ID[id];
   const lista = modelosDo(nucleoId);
   return lista.find((m) => m.id === id) || lista[0];
 }
+/** Formato de um modelo ('3x4' ou 'pin'). */
+export const formatoDoModelo = (m) => m?.formato || '3x4';
 
 /** Seta fina para a direita, na altura das maiúsculas do Rótulo. */
 const SETA = '<svg class="seta" viewBox="0 0 30 14" width="30" height="14" aria-hidden="true"><path d="M0 7H28M22 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
@@ -1084,7 +1144,7 @@ const SETA_VOLTA = '<svg class="seta" viewBox="0 0 30 14" width="30" height="14"
 export function renderCard(opc) {
   const modelo = modeloDe(opc.nucleo.id, opc.card.modelo);
   const t = criarContexto({ ...opc, modelo });
-  return modelo.render(t) + pontos();
+  return modelo.render(t) + (modelo.semPontos ? '' : pontos());
 }
 
 /** Textos de conteúdo do card (Título / Corpo), na ordem em que aparecem: [{ chave, macro, padrao }]. */
@@ -1169,7 +1229,7 @@ export function colorirPontos(card) {
   });
   // Selo: quando a imagem chega até ele (texto desligado), a cor passa a contrastar com a imagem
   card.querySelectorAll(':scope > .selo').forEach((s) => {
-    const x = LARG / 2, y = ALT - E.selo;
+    const x = LARG / 2, y = s.offsetTop + s.offsetHeight / 2; // centro do selo (a altura do card varia com o formato)
     const topo = [...card.children].reverse().find((el) => (el.classList.contains('bloco') || el.classList.contains('slot'))
       && x >= el.offsetLeft && x <= el.offsetLeft + el.offsetWidth && y >= el.offsetTop && y <= el.offsetTop + el.offsetHeight);
     s.style.color = topo?.classList.contains('slot') && !topo.dataset.vazio ? corSob(card, x, y) : s.dataset.cor;
@@ -1205,6 +1265,7 @@ export const GRUPOS = [
   ['corpo', 'Corpo'],
   ['fechamento', 'Fechamento'],
   ['unico', 'Posts únicos'],
+  ['pin', 'Pins'],
 ];
 export function grupoDe(m) {
   if (m.grupo) return m.grupo;
@@ -1284,7 +1345,7 @@ export function seguir(el, raiz) {
   if (!bloco) return;
   if (blocoVazio(bloco)) {
     // sem texto, a imagem sobe até o topo do card (e o painel some)
-    const fim = Number(el.dataset.fim || ALT);
+    const fim = Number(el.dataset.fim || card.offsetHeight || ALT);
     if (el.dataset.modo === 'altura') el.style.height = '0px';
     else { el.style.top = '0px'; el.style.height = fim + 'px'; }
     return;
@@ -1293,7 +1354,7 @@ export function seguir(el, raiz) {
   if (el.dataset.modo === 'altura') {
     el.style.height = Math.max(0, y - el.offsetTop) + 'px';
   } else {
-    const fim = Number(el.dataset.fim || ALT);
+    const fim = Number(el.dataset.fim || card.offsetHeight || ALT);
     const topo = Math.min(y, fim - IMG_MIN);
     el.style.top = topo + 'px';
     el.style.height = fim - topo + 'px';
@@ -1314,7 +1375,7 @@ export function anteceder(el, raiz) {
   const card = raiz.classList?.contains('card') ? raiz : el.closest('.card') || raiz;
   const bloco = card.querySelector(`[data-bloco="${el.dataset.antes}"]`);
   if (!bloco) return;
-  if (blocoVazio(bloco)) { el.style.height = ALT - el.offsetTop + 'px'; return; } // sem texto, a imagem desce até a base
+  if (blocoVazio(bloco)) { el.style.height = (card.offsetHeight || ALT) - el.offsetTop + 'px'; return; } // sem texto, a imagem desce até a base
   const fim = Math.round(inicioDoBloco(bloco) - Number(el.dataset.gap || E.bloco));
   el.style.height = Math.max(IMG_MIN, fim - el.offsetTop) + 'px';
 }

@@ -54,6 +54,7 @@ export function resumo(pub) {
   return {
     id: pub.id,
     nucleo: pub.nucleo,
+    formato: pub.formato || '3x4',
     titulo: pub.titulo || pub.globais?.projeto || '',
     ncards: pub.cards?.length || 0,
     criado: pub.criado,
