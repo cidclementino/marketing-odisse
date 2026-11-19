@@ -9,49 +9,11 @@ import * as pool from './pool.js';
 import { segundaDe, somarDias, dataDe, hoje, isoDia } from './pool.js';
 
 // ---------------------------------------------------------------------------
-// Formatos e modelos (seção 05)
+// Formatos, grade padrão e horários (seções 02, 03 e 05): em grade.js, que o Worker também usa.
 
-export const POST_DE = {
-  arquitetos: 'Carrossel de projeto',
-  objetos: 'Ensaio de peças',
-  elaia: 'Carrossel resumo',
-  estudio: 'Fotografias',
-};
-export const REELS = {
-  E1: ['elaia', 'Book Phrase'], E2: ['arquitetos', 'Antes & Depois'], E3: ['arquitetos', 'Tour + Voiceover'],
-  E4: ['arquitetos', 'Spatial Glitch'], E5: ['arquitetos', 'Materiais'], E6: ['elaia', 'Cortes'],
-  E7: ['objetos', 'Unboxing'], E8: ['objetos', 'Compilação de materiais'], E9: ['estudio', 'Pure Edit'], E10: ['estudio', 'Creation Takes'],
-};
-export const rotuloDe = (e) => (e.formato === 'reel' ? `Reel ${e.rotulo}${REELS[e.rotulo] ? ` · ${REELS[e.rotulo][1]}` : ''}` : `Post · ${e.rotulo || POST_DE[e.nucleo] || ''}`);
-
-// ---------------------------------------------------------------------------
-// Grade semanal (seções 02 e 03). Dias de segunda (0) a domingo (6); em cada dia, a ordem de publicação.
-// Fases 1 a 4 têm uma semana só; a fase 5 alterna semana A (1 e 3 do ciclo) e semana B (2 e 4).
-
-const P = (nucleo) => ({ nucleo, formato: 'post', rotulo: POST_DE[nucleo] });
-const R = (nucleo, e) => ({ nucleo, formato: 'reel', rotulo: e });
-const [ARQ, OBJ, EL, EST] = ['arquitetos', 'objetos', 'elaia', 'estudio'];
-const F3 = [[R(ARQ, 'E2'), P(OBJ)], [P(ARQ), R(EL, 'E6')], [R(ARQ, 'E3'), P(OBJ)], [P(ARQ), P(EL)], [P(EST)], [P(ARQ)], [P(EL)]];
-export const GRADE_PADRAO = {
-  1: { A: [[P(OBJ)], [P(ARQ)], [P(OBJ)], [P(EL), P(ARQ)], [P(EST)], [P(ARQ)], [P(EL)]], B: null },
-  2: { A: [[R(ARQ, 'E2'), P(OBJ)], [P(ARQ)], [P(OBJ), R(ARQ, 'E3')], [P(EL), P(ARQ)], [P(EST)], [P(ARQ)], [P(EL)]], B: null },
-  3: { A: F3, B: null },
-  4: { A: F3.map((d, i) => (i === 4 ? [R(ARQ, 'E4'), P(EST)] : d)), B: null },
-  5: {
-    A: [[P(OBJ), R(ARQ, 'E2')], [R(EL, 'E6'), P(ARQ)], [P(OBJ), R(ARQ, 'E3')], [P(EL), P(ARQ), R(EST, 'E10')], [R(ARQ, 'E4'), P(EST)], [P(ARQ), R(EL, 'E1')], [R(EST, 'E9'), P(EL)]],
-    B: [[R(ARQ, 'E2'), P(OBJ)], [P(ARQ), R(EL, 'E6')], [R(ARQ, 'E3'), P(OBJ)], [P(ARQ), P(EL), R(ARQ, 'E5')], [P(EST), R(ARQ, 'E4')], [R(OBJ, 'E7'), P(ARQ)], [R(OBJ, 'E8'), P(EL)]],
-  },
-};
-export const FASES = [1, 2, 3, 4, 5];
-export const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-
-/** Horário pela posição no dia, não pelo tipo (seção 03). */
-export function horarios(n) {
-  if (n <= 1) return ['11h–13h'];
-  if (n === 2) return ['11h–13h', '20h–22h'];
-  if (n === 3) return ['11h–13h', '15h–17h', '20h–22h'];
-  return Array.from({ length: n }, (_, i) => (i === 0 ? '11h–13h' : i === n - 1 ? '20h–22h' : '15h–17h'));
-}
+import { faseNaEstrategia, semanaNaEstrategia, gradeNaEstrategia, encaixesNaEstrategia } from './grade.js';
+export { POST_DE, REELS, rotuloDe, GRADE_PADRAO, FASES, DIAS, horarios } from './grade.js';
+import { GRADE_PADRAO } from './grade.js';
 
 // ---------------------------------------------------------------------------
 // Estratégia guardada: { grade, fases: [{ fase, desde }], cicloInicio }
@@ -80,39 +42,19 @@ export async function gravarEstrategia(nova) {
 }
 
 /** Fase da escalada valendo num dia (a fase muda a partir da segunda-feira em que foi trocada). */
-export function faseEm(dia) {
-  const fs = [...(estrategia().fases || [])].sort((a, b) => a.desde.localeCompare(b.desde));
-  let f = 1; // antes da primeira troca registrada, fase 1
-  for (const x of fs) if (x.desde <= dia) f = x.fase;
-  return f;
-}
+export const faseEm = (dia) => faseNaEstrategia(estrategia(), dia);
 export const faseAtual = () => faseEm(hoje());
 
 // ---------------------------------------------------------------------------
 // Ciclo de 4 semanas (seção 07)
 
-export function semanaDoCiclo(dia) {
-  const ini = estrategia().cicloInicio || segundaDe(hoje());
-  const seg = segundaDe(dia);
-  const k = Math.round((dataDe(seg) - dataDe(ini)) / (7 * 864e5));
-  const n = ((k % 4) + 4) % 4 + 1;
-  return { n, ab: n % 2 ? 'A' : 'B', inicio: somarDias(seg, -(n - 1) * 7), seg };
-}
+export const semanaDoCiclo = (dia) => semanaNaEstrategia(estrategia(), dia, hoje());
 
 /** Grade de um dia da semana (0 = segunda) numa fase e semana. */
-export function gradeDia(fase, ab, dow) {
-  const g = estrategia().grade?.[fase] || GRADE_PADRAO[fase];
-  const sem = ab === 'B' && g.B ? g.B : g.A;
-  return sem?.[dow] || [];
-}
+export const gradeDia = (fase, ab, dow) => gradeNaEstrategia(estrategia(), fase, ab, dow);
 
 /** Encaixes previstos num dia: [{ pos, nucleo, formato, rotulo, horario }]. */
-export function encaixesDoDia(dia) {
-  const dow = (dataDe(dia).getDay() + 6) % 7;
-  const lista = gradeDia(faseEm(dia), semanaDoCiclo(dia).ab, dow);
-  const hs = horarios(lista.length);
-  return lista.map((e, pos) => ({ ...e, pos, horario: hs[pos] }));
-}
+export const encaixesDoDia = (dia) => encaixesNaEstrategia(estrategia(), dia, hoje());
 
 /**
  * Prazos que caem numa semana de trabalho (antecedências da seção 07):

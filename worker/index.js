@@ -43,9 +43,15 @@
 //   DELETE /api/concorrentes/:usuario       -> remove a conta e seus dados
 //
 // Cron diário (wrangler.toml) -> coleta do Instagram.
+//
+// Ponto de entrada "Universo" (Worker a Worker, sem senha: só outro Worker da mesma conta o alcança):
+//   resumo(dia?)            -> publicações de hoje, atrasadas e Instagram de ontem (worker/universo.js)
+//   publicar({ tipo, id })  -> confirma uma publicação feita (item do pool ou pauta de reel)
 
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import * as ig from './instagram.js';
 import * as conc from './concorrentes.js';
+import * as universo from './universo.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -275,4 +281,12 @@ async function concorrentes(request, env, usuario) {
     return erro(e.message || 'erro nos concorrentes', ['token', 'conta'].includes(e.codigo) ? 400 : 502);
   }
   return erro('rota não encontrada', 404);
+}
+
+// ---------------------------------------------------------------- Universo (Worker a Worker)
+// Início do Universo (Cid, 19/11). Ligação no universo-hub: [[services]] MARKETING → universo-odisse,
+// entrypoint "Universo".
+export class Universo extends WorkerEntrypoint {
+  async resumo(dia) { return universo.resumo(this.env, dia); }
+  async publicar(alvo, dia) { return universo.publicar(this.env, alvo, dia); }
 }

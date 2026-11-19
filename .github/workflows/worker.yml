@@ -3,7 +3,7 @@ name: Publicar API (Cloudflare Worker)
 on:
   push:
     branches: [main]
-    paths: ['worker/**', '.github/workflows/worker.yml']
+    paths: ['worker/**', 'assets/js/grade.js', '.github/workflows/worker.yml'] # grade.js: o Worker usa (Início do Universo)
   workflow_dispatch:
 
 jobs:
