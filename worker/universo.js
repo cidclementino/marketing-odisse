@@ -4,6 +4,8 @@
 //                                  Instagram do dia anterior (números fechados, 00:00–23:59 de Brasília)
 //   publicar(env, alvo, dia)    -> confirma uma publicação: item do pool vira "publicado" (e a pauta do
 //                                  encaixe vira "publicada"), ou uma pauta de reel vira "publicada"
+//   periodo(env, de, ate)       -> KPIs do Universo (Cid, 19/11): números diários do Instagram e publicações
+//                                  feitas por mês, de `de` até `ate` (AAAA-MM-DD, até 400 dias), numa chamada só
 //
 // As regras são as mesmas do Calendário (assets/js/pagina-calendario.js › sincronizarPauta) e os encaixes
 // vêm de assets/js/grade.js, o mesmo código da página. Ligação no universo-hub: [[services]] MARKETING →
@@ -130,4 +132,40 @@ export async function publicar(env, alvo, dia) {
     if (p && p.status !== 'publicada') { p.status = 'publicada'; await kv.put('cfg:pautas', JSON.stringify(pautas)); }
   }
   return { ok: true };
+}
+
+// KPIs do Universo (Cid, 19/11). Uma chamada só para um período (o hub pede 12 meses de uma vez):
+//   dias:        { 'AAAA-MM-DD': { alcance, interacoes, visitas, toques, novos, seguidores } }, os mesmos números
+//                de instagramDoDia; seguidores = total no fim do dia (retrato tirado na coleta da manhã seguinte)
+//   publicacoes: { 'AAAA-MM': { instagram, feed, reels, pinterest } }. Instagram pelos posts coletados da conta
+//                (ig:posts, dia de Brasília; stories não entram), Pinterest pelos pins confirmados no pool.
+const DIA_RE = /^\d{4}-\d{2}-\d{2}$/;
+export async function periodo(env, de, ate) {
+  const kv = env.UNIVERSO;
+  if (!DIA_RE.test(de || '') || !DIA_RE.test(ate || '') || de > ate) return { erro: 'envie de e ate como AAAA-MM-DD' };
+  if (Date.parse(ate) - Date.parse(de) > 400 * 86400000) return { erro: 'período de no máximo 400 dias' };
+  const [diasIg, posts, pool] = await Promise.all([kv.get('ig:dias', 'json'), kv.get('ig:posts', 'json'), listarPool(kv)]);
+  const dias = {};
+  for (let d = de; d <= ate; d = somarDiasG(d, 1)) {
+    const x = diasIg?.[d];
+    if (!x) continue;
+    dias[d] = {
+      alcance: x.alcance ?? null, interacoes: x.interacoes ?? null, visitas: x.visitas ?? null,
+      toques: x.toques ?? null, novos: x.seguiram ?? x.novos ?? null,
+      seguidores: diasIg?.[somarDiasG(d, 1)]?.seguidores ?? null,
+    };
+  }
+  const publicacoes = {};
+  const conta = (dia, campo) => {
+    if (!dia || dia < de || dia > ate) return;
+    const m = (publicacoes[dia.slice(0, 7)] ||= { instagram: 0, feed: 0, reels: 0, pinterest: 0 });
+    m[campo]++;
+    if (campo === 'feed' || campo === 'reels') m.instagram++;
+  };
+  for (const p of Object.values(posts || {})) {
+    if (p.produto === 'STORY') continue;
+    conta(p.dia, p.produto === 'REELS' ? 'reels' : 'feed');
+  }
+  for (const it of pool) if (it.rede === 'pinterest' && it.status === 'publicado') conta(it.publicadoEm || it.dia, 'pinterest');
+  return { de, ate, dias, publicacoes };
 }
