@@ -930,7 +930,7 @@ const RESPIRO_CAIXA = E.bloco;
 const O14 = {
   id: 'o14', cod: 'O-14',
   nome: 'Imagem + caixa de texto',
-  desc: 'Imagem inteira ao fundo; rótulo (opcional), título e texto de apoio numa caixa com a cor de preenchimento, no topo ou na base do recorte quadrado. A caixa cresce com o texto.',
+  desc: 'Imagem inteira ao fundo; rótulo (opcional), título e texto de apoio numa caixa com a cor de preenchimento, no topo ou na base do recorte quadrado. A caixa cresce com o texto; só com o texto de apoio, ela começa na coluna 5, junto dele.',
   slots: { a: 'Imagem de fundo' },
   opcoes: [
     op('caixa', 'Caixa de texto', [['alto', 'Topo'], ['pe', 'Base']], 'pe'),
@@ -941,15 +941,21 @@ const O14 = {
   exemplo: porNucleo(EX_TESE),
   render(t) {
     const pad = RESPIRO_CAIXA;
+    const rot = t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`);
+    const tit = t.campo('titulo', 't-titulo', '', { fit: 340 });
+    // só o texto de apoio na caixa (rótulo e título desligados ou vazios): a caixa se ajusta a ele —
+    // começa na coluna 5 e vai para a largura toda se o texto passar de 5 linhas (data-caixa, em crescer)
+    const soTexto = !rot && !tit;
     const miolo = [
-      t.campo('rotulo', 't-rotulo', `margin-bottom:${px('proximo')}`),
-      t.campo('titulo', 't-titulo', '', { fit: 340 }),
+      rot,
+      tit,
       // texto de apoio: começa na coluna 5 do card (descontado o respiro da caixa) e vai para a largura toda se passar de 5 linhas
-      t.campo('texto', 't-texto', `margin-top:${px('bloco')};margin-left:${X(5) - M - pad}px`, { attrs: ` data-cresce="5,1" data-recuo="${pad}"` }),
+      t.campo('texto', 't-texto', `margin-top:${px('bloco')};margin-left:${soTexto ? 0 : X(5) - M - pad}px`, { attrs: ` data-cresce="5,1" data-recuo="${pad}"${soTexto ? ' data-caixa' : ''}` }),
     ].join('');
     const ancora = t.op('caixa') === 'alto' ? `top:${QUADRO}px` : `bottom:${ALT - FIM}px`;
+    const x0 = soTexto ? X(5) - pad : M;
     const caixa = miolo.trim()
-      ? `<div class="bloco fluxo caixa" style="left:${M}px;width:${W12}px;${ancora};max-height:${FIM - QUADRO}px;padding:${pad}px;box-sizing:border-box;background:${t.f};color:${t.tinta}">${miolo}</div>`
+      ? `<div class="bloco fluxo caixa" style="left:${x0}px;width:${M + W12 - x0}px;${ancora};max-height:${FIM - QUADRO}px;padding:${pad}px;box-sizing:border-box;background:${t.f};color:${t.tinta}">${miolo}</div>`
       : '';
     return `${t.img('a', 0, 0, LARG, ALT)}${t.veuTopo()}${t.veuBase(300, 0.55)}
       ${t.cab(B)}
@@ -1321,8 +1327,15 @@ export function crescer(el) {
   const estagios = el.dataset.cresce.split(',').map(Number);
   const lh = parseFloat(getComputedStyle(el).lineHeight) || 39;
   const recuo = Number(el.dataset.recuo || 0); // texto dentro de caixa: desconta o respiro dela para seguir o grid do card
+  // data-caixa: o texto está sozinho numa caixa (O-14) — quem anda é a borda esquerda da caixa, não o texto
+  const caixa = el.dataset.caixa !== undefined ? el.parentElement : null;
   for (const col of estagios) {
-    el.style.marginLeft = Math.max(0, X(col) - M - recuo) + 'px';
+    if (caixa) {
+      const x0 = Math.max(M, X(col) - recuo);
+      caixa.style.left = x0 + 'px';
+      caixa.style.width = M + W(1, 12) - x0 + 'px';
+      el.style.marginLeft = '0px';
+    } else el.style.marginLeft = Math.max(0, X(col) - M - recuo) + 'px';
     if (Math.round(el.scrollHeight / lh) <= LINHAS_MAX) break;
   }
 }
