@@ -605,12 +605,28 @@ async function vincularAutomatico(kv, posts, agora) {
   if (!soltos.length) return;
   const usadas = new Set(Object.values(vinc).map((v) => v.pub));
   const porDia = {};
+  const comDia = new Set();
+  // o dia de cada carrossel vem do pool (dia do encaixe ou da publicação confirmada)
+  let cur;
+  do {
+    const pag = await kv.list({ prefix: 'pool:', cursor: cur });
+    for (const k of pag.keys) {
+      const it = await kv.get(k.name, 'json');
+      if (!it?.pub || it.formato === 'pin' || usadas.has(it.pub) || it.status === 'pronto') continue;
+      const dia = it.publicadoEm || it.dia;
+      if (!dia) continue;
+      (porDia[dia] = porDia[dia] || []).push(it.pub);
+      comDia.add(it.pub);
+    }
+    cur = pag.list_complete ? undefined : pag.cursor;
+  } while (cur);
+  // publicações antigas, de antes do pool: a data escolhida à mão no editor
   let cursor;
   do {
     const pag = await kv.list({ prefix: 'resumo:', cursor });
     for (const k of pag.keys) {
       const id = k.name.slice(7);
-      if (usadas.has(id)) continue;
+      if (usadas.has(id) || comDia.has(id)) continue;
       const r = await kv.get(k.name, 'json');
       if (r?.formato === 'pin') continue; // pins do Pinterest não são posts do Instagram
       let dia = r?.dataPublicacao;
