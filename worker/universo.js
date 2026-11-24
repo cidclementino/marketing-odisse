@@ -1,6 +1,6 @@
 // Início do Universo (Cid, 19/11): o que o hub pede ao marketing, Worker a Worker.
 //
-//   resumo(env, dia)            -> publicações de hoje (encaixes da Estratégia + pool), atrasadas e o
+//   resumo(env, dia)            -> publicações de hoje (encaixes de cada plataforma da Estratégia + pool), atrasadas e o
 //                                  Instagram do dia anterior (números fechados, 00:00–23:59 de Brasília)
 //   publicar(env, alvo, dia)    -> confirma uma publicação: item do pool vira "publicado" (e a pauta do
 //                                  encaixe vira "publicada"), ou uma pauta de reel vira "publicada"
@@ -11,10 +11,8 @@
 // vêm de assets/js/grade.js, o mesmo código da página. Ligação no universo-hub: [[services]] MARKETING →
 // universo-odisse (este Worker), entrypoint "Universo".
 
-import { encaixesNaEstrategia, segundaDeG, somarDiasG, rotuloDe } from '../assets/js/grade.js';
+import { encaixesNaEstrategia, normalizar, plataformaDe, plataformaDaPauta, somarDiasG } from '../assets/js/grade.js';
 import { diaLocal } from './instagram.js';
-
-const padraoEst = (hoje) => ({ grade: null, fases: [{ fase: 1, desde: '2000-01-03' }], cicloInicio: segundaDeG(hoje) });
 
 async function listarPool(kv) {
   const out = [];
@@ -34,32 +32,40 @@ const leve = (it) => ({
   nimagens: it.imagens?.length || 0, pasta: it.pin?.pastaNome || '',
 });
 
-/** Linhas do dia, só o que ainda não foi publicado; e as contagens. */
-export function montarDia({ est, pautas, pool, hoje }) {
-  const encaixes = encaixesNaEstrategia(est || padraoEst(hoje), hoje, hoje);
+/**
+ * Linhas do dia, só o que ainda não foi publicado; e as contagens. Uma linha por encaixe da grade de cada
+ * plataforma (item do pool, pauta ou lacuna); nas plataformas por cota, os itens agendados para o dia.
+ * Cada linha traz `rede` (id da plataforma) e `plataformaNome`.
+ */
+export function montarDia({ est: bruta, pautas, pool, hoje }) {
+  const est = normalizar(bruta, hoje);
+  const encaixes = encaixesNaEstrategia(est, hoje, hoje);
   const doDia = pool.filter((x) => x.dia === hoje);
   const usados = new Set();
   const linhas = [];
   let publicadas = 0;
+  const nome = (pid) => plataformaDe(est, pid)?.nome || pid;
 
-  // Instagram: um encaixe da grade por linha (item do pool, pauta ou lacuna)
   for (const e of encaixes) {
-    const item = doDia.find((x) => x.rede === 'instagram' && x.pos === e.pos) || null;
-    const pauta = pautas.find((p) => p.formato !== 'pin' && p.dia === hoje && p.pos === e.pos) || null;
+    if (e.pos == null) continue; // cota: os itens entram abaixo
+    const pid = e.plataforma;
+    const item = doDia.find((x) => x.rede === pid && x.pos === e.pos) || null;
+    const pauta = pautas.find((p) => plataformaDaPauta(p) === pid && p.dia === hoje && p.pos === e.pos) || null;
     if (item) usados.add(item.id);
     const feito = item ? item.status === 'publicado' : pauta?.status === 'publicada';
     if (feito) { publicadas++; continue; }
-    const base = { rede: 'instagram', pos: e.pos, horario: e.horario, nucleo: item?.nucleo || pauta?.nucleo || e.nucleo, encaixe: rotuloDe(e), formato: e.formato };
-    if (item) linhas.push({ ...base, tipo: 'item', ...leve(item), confirma: true });
-    else if (pauta) linhas.push({ ...base, tipo: 'pauta', id: pauta.id, titulo: [pauta.obra, pauta.angulo].filter(Boolean).join(' — '), situacao: pauta.status, confirma: e.formato === 'reel' && pauta.status === 'pronta' });
+    const base = { rede: pid, plataformaNome: nome(pid), pos: e.pos, horario: e.horario, nucleo: item?.nucleo || pauta?.nucleo || e.nucleo, encaixe: e.rotulo, formato: e.formato };
+    if (item) linhas.push({ ...base, tipo: 'item', ...leve(item), plataformaNome: nome(pid), confirma: true });
+    else if (pauta) linhas.push({ ...base, tipo: 'pauta', id: pauta.id, titulo: [pauta.obra, pauta.angulo].filter(Boolean).join(' — '), situacao: pauta.status, confirma: !!e.formato && e.formato !== 'post' && pauta.status === 'pronta' });
     else linhas.push({ ...base, tipo: 'lacuna', confirma: false });
   }
 
-  // o resto do pool agendado para hoje (pins e o que estiver fora dos encaixes)
+  // o resto do pool agendado para hoje (cotas, como os pins, e o que estiver fora dos encaixes)
   for (const it of doDia) {
     if (usados.has(it.id)) continue;
     if (it.status === 'publicado') { publicadas++; continue; }
-    linhas.push({ tipo: 'item', ...leve(it), encaixe: it.rede === 'pinterest' ? 'Pin' : 'Fora da grade', confirma: true });
+    const p = plataformaDe(est, it.rede);
+    linhas.push({ tipo: 'item', ...leve(it), plataformaNome: nome(it.rede), encaixe: p?.modo === 'cota' ? (p.formatos[0]?.nome || 'Cota do dia') : 'Fora da grade', confirma: true });
   }
 
   const atrasadas = pool.filter((x) => x.status === 'agendado' && x.dia && x.dia < hoje).length;
@@ -98,7 +104,7 @@ export async function resumo(env, dia) {
   ]);
   return {
     hoje,
-    ...montarDia({ est: est?.grade ? est : null, pautas: Array.isArray(pautas) ? pautas : [], pool, hoje }),
+    ...montarDia({ est: est && (est.versao === 2 || est.grade || Array.isArray(est.fases)) ? est : null, pautas: Array.isArray(pautas) ? pautas : [], pool, hoje }),
     instagram: token ? instagramDoDia(dias, estado, hoje) : null,
   };
 }
@@ -127,8 +133,8 @@ export async function publicar(env, alvo, dia) {
     await kv.put(`pool:${id}`, JSON.stringify(it));
   }
   // a pauta do encaixe acompanha o item (sincronizarPauta, no Calendário)
-  if (it.rede === 'instagram' && it.dia && it.pos != null) {
-    const p = pautas.find((x) => x.formato !== 'pin' && x.dia === it.dia && x.pos === it.pos);
+  if (it.dia && it.pos != null) {
+    const p = pautas.find((x) => plataformaDaPauta(x) === it.rede && x.dia === it.dia && x.pos === it.pos);
     if (p && p.status !== 'publicada') { p.status = 'publicada'; await kv.put('cfg:pautas', JSON.stringify(pautas)); }
   }
   return { ok: true };
