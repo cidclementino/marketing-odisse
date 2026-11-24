@@ -16,7 +16,7 @@ Endereço: `https://universo-odisse.reservaprojectbasework.workers.dev`. Todas a
 - **KV `UNIVERSO`** (id em `worker/wrangler.toml`):
   - `pub:<id>` publicação completa · `resumo:<id>` resumo para o arquivo (com `criado`, `atualizado`, `salvoEm`,
     `enviadoEm`, `arquivado` e a miniatura da capa) · `img:<ref>` imagem (binário) · `pool:<id>` item do pool de
-    mídias · `cfg:<chave>` configurações comuns (`pin-pastas`, `estrategia`, `pautas`)
+    mídias · `cfg:<chave>` configurações comuns (`pin-pastas`, `estrategia`, `pautas`, `padroes-cards`)
   - Instagram e métricas: `ig:token`, `ig:app`, `ig:estado`, `ig:dias`, `ig:posts`, `ig:vinculos`,
     `igmini:<id>`, `ig:online`, `ig:publico`, `ig:publico-hist`, `ig:stories`, `met:etiquetas`, `conc:*`
 - **Rotas:** `GET/PUT /api/publicacoes[/:id]` (a tela arquiva com `arquivado`; o `DELETE` ainda apaga a

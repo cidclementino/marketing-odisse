@@ -63,7 +63,7 @@ const CORS = {
 const MAX_IMG = 20 * 1024 * 1024;
 const ID = /^[a-z0-9_-]{4,64}$/i;
 // configurações comuns e o tamanho máximo de cada uma
-const CONFIGS = new Map([['pin-pastas', 64 * 1024], ['estrategia', 128 * 1024], ['pautas', 1024 * 1024]]);
+const CONFIGS = new Map([['pin-pastas', 64 * 1024], ['estrategia', 128 * 1024], ['pautas', 1024 * 1024], ['padroes-cards', 64 * 1024]]);
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
