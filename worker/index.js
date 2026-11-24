@@ -14,7 +14,7 @@
 //   GET    /api/publicacoes          -> lista de resumos
 //   GET    /api/publicacoes/:id      -> publicação completa
 //   PUT    /api/publicacoes/:id      -> grava publicação (e o resumo)
-//   DELETE /api/publicacoes/:id      -> apaga publicação, resumo e imagens que só ela usava
+//   DELETE /api/publicacoes/:id      -> apaga publicação, resumo e imagens que só ela usava (a tela arquiva: `arquivado`)
 //   HEAD   /api/imagens/:ref         -> 200 se existe
 //   GET    /api/imagens/:ref         -> imagem
 //   PUT    /api/imagens/:ref         -> grava imagem (corpo binário)
@@ -107,6 +107,10 @@ function resumo(pub) {
     ncards: pub.cards?.length || 0,
     criado: pub.criado,
     atualizado: pub.atualizado,
+    salvoEm: pub.salvoEm || '',
+    enviadoEm: pub.enviadoEm || '',
+    arquivado: !!pub.arquivado,
+    // data escolhida à mão nas publicações antigas (o campo saiu do editor; serve só ao vínculo com o Instagram)
     dataPublicacao: pub.globais?.dataPublicacao || '',
     capa: typeof pub.capa === 'string' && pub.capa.length < 400000 ? pub.capa : '',
   };
