@@ -16,7 +16,8 @@ const API_IG = 'https://graph.instagram.com/v24.0'; // login do Instagram (token
 const API_FB = 'https://graph.facebook.com/v24.0';  // login unificado (token de usuário do sistema, apps novos)
 const DIALOGO = 'https://www.facebook.com/v24.0/dialog/oauth';
 export const RETORNO = 'https://universo-odisse.reservaprojectbasework.workers.dev/api/instagram/retorno';
-const VOLTAS = [/^https:\/\/marketing\.odisse\.com\.br\//, /^http:\/\/localhost(:\d+)?\//];
+// desde 24/11/2026 o Marketing mora em universo.odisse.com.br/marketing/; o endereço antigo segue aceito (redireciona)
+const VOLTAS = [/^https:\/\/universo\.odisse\.com\.br\/marketing\//, /^https:\/\/marketing\.odisse\.com\.br\//, /^http:\/\/localhost(:\d+)?\//];
 const DIA_MS = 86400000;
 const FUSO_MS = -3 * 3600000; // Brasília, sem horário de verão
 const HIST_DIAS = 90;          // histórico diário de cada post nos primeiros 90 dias
@@ -147,7 +148,7 @@ export async function iniciarLogin(env, { appId, segredo, config, volta, igId } 
     appId: String(appId || ant.appId || '').trim(),
     segredo: String(segredo || ant.segredo || '').trim(),
     config: String(config || ant.config || '').trim(),
-    volta: VOLTAS.some((r) => r.test(volta || '')) ? volta : ant.volta || 'https://marketing.odisse.com.br/',
+    volta: VOLTAS.some((r) => r.test(volta || '')) ? volta : ant.volta || 'https://universo.odisse.com.br/marketing/',
     igId: /^\d{5,32}$/.test(String(igId || '').trim()) ? String(igId).trim() : '',
   };
   if (!/^\d{5,32}$/.test(app.appId)) throw new ErroIG('ID do app inválido (só números).', 'app');
@@ -168,7 +169,7 @@ export async function iniciarLogin(env, { appId, segredo, config, volta, igId } 
 /** Retorno do login: troca o código pelo token e volta para o Universo. */
 export async function retornoLogin(env, params) {
   const app = (await env.UNIVERSO.get('ig:app', 'json')) || {};
-  const volta = (app.volta || 'https://marketing.odisse.com.br/') + '#/metricas';
+  const volta = (app.volta || 'https://universo.odisse.com.br/marketing/') + '#/metricas';
   const falhar = async (msg) => {
     const est = (await env.UNIVERSO.get('ig:estado', 'json')) || {};
     await env.UNIVERSO.put('ig:estado', JSON.stringify({ ...est, erro: msg }));

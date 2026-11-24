@@ -1,5 +1,11 @@
 # Universo · marketing-odisse
 
+> **Desde 24/11/2026 as telas do Marketing moram no Universo, em `universo.odisse.com.br/marketing/`** (repo
+> universo-odisse, pasta `marketing/`), com a senha da equipe. Este repo guarda só a **API** (`worker/`, publicada
+> pelo `.github/workflows/worker.yml`) e o `assets/js/grade.js`, que o Worker importa (há uma cópia em
+> `universo-odisse/marketing/assets/js/grade.js`: mudou lá, mude aqui). `marketing.odisse.com.br` só redireciona.
+> O texto abaixo descreve as telas e vale para a pasta `marketing/` do Universo.
+
 Plataforma de gestão de marketing e aceleração de produção de mídias do **Odisse — Estúdio de Arquitetura & Design**.
 
 A primeira página é o **editor de posts 3:4** para o Instagram (1080 × 1440 px). Ele segue o *Manual do sistema* (v1, out. 2026): grid de 12 colunas, Inter, ardósia como tinta, um registro por núcleo e o repertório de modelos de cada um.
